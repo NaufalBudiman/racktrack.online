@@ -18,8 +18,8 @@ const config: Config = {
         violet: "#9B8CF2",
       },
       fontFamily: {
-        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
-        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["\"IBM Plex Mono\"", "ui-monospace", "monospace"],
+        sans: ["\"IBM Plex Sans\"", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       keyframes: {
         led: {
