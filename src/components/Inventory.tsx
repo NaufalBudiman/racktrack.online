@@ -107,6 +107,16 @@ export function Inventory({
   const typeOptions: readonly string[] =
     group === "All" ? GROUPS.flatMap((g) => CATEGORY_GROUPS[g]) : CATEGORY_GROUPS[group];
 
+  // Most used first, for the action forms' autocomplete.
+  const suggestions = useMemo(() => {
+    const rank = (values: (string | null)[]) => {
+      const counts = new Map<string, number>();
+      for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v);
+    };
+    return { customers: rank(devices.map((d) => d.customer)), locations: rank(devices.map((d) => d.location)) };
+  }, [devices]);
+
   const atLimit = devices.length >= MAX_DEVICES_PER_WORKSPACE;
   const selectedDevice = selected && selected !== "new" ? devices.find((d) => d.id === selected.id) ?? null : null;
   const filtersActive = q !== "" || group !== "All" || type !== "All" || status !== "All" || !!customer;
@@ -335,6 +345,7 @@ export function Inventory({
           device={selectedDevice}
           workspaceId={workspaceId}
           canEdit={canEdit}
+          suggestions={suggestions}
           overdue={selectedDevice ? isOverdue(selectedDevice, today) : false}
           onClose={() => setSelected(null)}
         />

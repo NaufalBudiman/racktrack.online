@@ -5,8 +5,8 @@ import { and, count, eq } from "drizzle-orm";
 import { authorize } from "@/lib/access";
 import { getDb } from "@/lib/db";
 import { deviceHistory, devices } from "@/lib/schema";
-import { MAX_DEVICES_PER_WORKSPACE, limitMessage } from "@/lib/categories";
-import { deviceInputSchema, idSchema, type DeviceInput } from "@/lib/validation";
+import { ASSIGNMENT_LABELS, MAX_DEVICES_PER_WORKSPACE, limitMessage, statusLabel } from "@/lib/categories";
+import { deviceInputSchema, idSchema, moveSchema, type DeviceInput } from "@/lib/validation";
 import type { ActionResult } from "@/lib/types";
 
 // Every query below filters by a workspace the session user is a member of (checked by
@@ -161,4 +161,65 @@ export async function importDevices(
     skipped,
     skippedNote: problems.length ? `Examples: ${problems.join("; ")}` : "",
   };
+}
+
+/** Send to customer, return to stock, mark faulty/missing/retired, from the action buttons. */
+export async function moveDevice(workspaceId: unknown, id: unknown, move: unknown): Promise<ActionResult> {
+  const auth = await authorize(workspaceId, "editor");
+  if (!auth.ok) return auth;
+
+  const idParsed = idSchema.safeParse(id);
+  if (!idParsed.success) return { ok: false, error: "Invalid device id." };
+  const m = moveSchema.safeParse(move);
+  if (!m.success) return { ok: false, error: m.error.issues[0]?.message ?? "Invalid input." };
+
+  const db = getDb();
+  const [existing] = await db
+    .select()
+    .from(devices)
+    .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId)));
+  if (!existing) return { ok: false, error: "Device not found." };
+
+  const move_ = m.data;
+  let patch: Record<string, unknown>;
+  let text: string;
+  switch (move_.type) {
+    case "checkout": {
+      if (existing.status === "In Use") return { ok: false, error: "This device is already at a customer. Return it first." };
+      const { customer, contact, assignment, outDate, returnDate } = move_;
+      patch = { status: "In Use", customer, contact, assignment, outDate, returnDate };
+      text = `Sent to ${customer} (${ASSIGNMENT_LABELS[assignment].toLowerCase()}${returnDate ? `, due ${returnDate}` : ""})`;
+      break;
+    }
+    case "checkin": {
+      patch = { status: move_.result, location: move_.location ?? existing.location };
+      const verb = existing.status === "Hilang" ? "Found" : existing.status === "Faulty" ? "Repaired" : "Returned";
+      const from = existing.status === "In Use" && existing.customer ? ` from ${existing.customer}` : "";
+      text = `${verb}${from} → ${statusLabel(move_.result)}${move_.location ? ` (${move_.location})` : ""}`;
+      break;
+    }
+    case "status": {
+      if (existing.status === move_.status) return { ok: false, error: `Already ${statusLabel(move_.status)}.` };
+      patch = { status: move_.status };
+      text = `Marked ${statusLabel(move_.status).toLowerCase()}`;
+      break;
+    }
+  }
+  if (move_.note) text += ` — ${move_.note}`;
+
+  // Re-run the normal device rules on the merged result (e.g. leaving a customer clears customer fields).
+  const { id: _i, workspaceId: _w, userId: _u, createdAt: _c, updatedAt: _up, ...current } = existing;
+  const parsed = deviceInputSchema.safeParse({ ...current, ...patch });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  await db.batch([
+    db
+      .update(devices)
+      .set({ ...parsed.data, updatedAt: new Date() })
+      .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId))),
+    db.insert(deviceHistory).values({ deviceId: idParsed.data, userId: auth.userId, text }),
+  ]);
+
+  revalidatePath("/app", "layout");
+  return { ok: true };
 }

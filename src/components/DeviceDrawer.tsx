@@ -20,6 +20,9 @@ import type { DeviceRow } from "@/lib/types";
 import { createDevice, deleteDevice, updateDevice } from "@/app/app/actions";
 import { StatusLed } from "./StatusLed";
 import { OverdueBadge } from "./DeviceCard";
+import { DeviceActions } from "./DeviceActions";
+
+export type Suggestions = { customers: string[]; locations: string[] };
 
 type FormState = {
   name: string;
@@ -101,6 +104,7 @@ export function DeviceDrawer({
   onDeleted,
   startEditing = false,
   showDetailsLink = true,
+  suggestions = { customers: [], locations: [] },
 }: {
   device: DeviceRow | null; // null = new device
   workspaceId: string;
@@ -110,6 +114,7 @@ export function DeviceDrawer({
   onDeleted?: () => void; // defaults to onClose
   startEditing?: boolean;
   showDetailsLink?: boolean;
+  suggestions?: Suggestions;
 }) {
   const router = useRouter();
   const isNew = device === null;
@@ -241,7 +246,12 @@ export function DeviceDrawer({
                 <span className="mt-1 block text-xs text-[#97A3B3]">{STATUS_HINTS[form.status as keyof typeof STATUS_HINTS]}</span>
               </Field>
               <Field label="Location">
-                <input className="input" value={form.location} onChange={set("location")} maxLength={200} />
+                <input className="input" list="drawer-locations" value={form.location} onChange={set("location")} maxLength={200} />
+                <datalist id="drawer-locations">
+                  {suggestions.locations.map((l) => (
+                    <option key={l} value={l} />
+                  ))}
+                </datalist>
               </Field>
               <Field label="Rack position / port">
                 <input className="input" value={form.rackPosition} onChange={set("rackPosition")} maxLength={80} placeholder="e.g. R2-U14" />
@@ -323,35 +333,47 @@ export function DeviceDrawer({
             </form>
           ) : (
             device && (
-              <dl>
-                <Row
-                  label="Status"
-                  value={
-                    <span className="flex items-center gap-2">
-                      <StatusLed status={device.status} /> {statusLabel(device.status)}
-                      {overdue && <OverdueBadge />}
-                    </span>
-                  }
-                />
-                <Row label="Location" value={device.location} />
-                <Row label="Rack / port" value={device.rackPosition} />
-                <Row label="Firmware" value={device.firmwareVersion && <span className="font-mono">{device.firmwareVersion}</span>} />
-                <Row label="Customer" value={device.customer} />
-                <Row label="Assignment" value={device.assignment && ASSIGNMENT_LABELS[device.assignment]} />
-                <Row label="Contact" value={device.contact} />
-                <Row label="Out date" value={device.outDate} />
-                <Row label="Return date" value={device.returnDate} />
-                <Row label="Condition" value={device.condition} />
-                <Row label="Purchase date" value={device.purchaseDate} />
-                <Row label="Warranty" value={device.warranty} />
-                <Row
-                  label="Coordinates"
-                  value={device.lat != null && device.lng != null ? `${device.lat}, ${device.lng}` : null}
-                />
-                <Row label="Notes" value={device.notes && <span className="whitespace-pre-wrap">{device.notes}</span>} />
-                <Row label="Added" value={new Date(device.createdAt).toLocaleDateString()} />
-                <Row label="Updated" value={new Date(device.updatedAt).toLocaleDateString()} />
-              </dl>
+              <>
+                {canEdit && (
+                  <div className="mb-5">
+                    <DeviceActions
+                      device={device}
+                      workspaceId={workspaceId}
+                      customers={suggestions.customers}
+                      locations={suggestions.locations}
+                    />
+                  </div>
+                )}
+                <dl>
+                  <Row
+                    label="Status"
+                    value={
+                      <span className="flex items-center gap-2">
+                        <StatusLed status={device.status} /> {statusLabel(device.status)}
+                        {overdue && <OverdueBadge />}
+                      </span>
+                    }
+                  />
+                  <Row label="Location" value={device.location} />
+                  <Row label="Rack / port" value={device.rackPosition} />
+                  <Row label="Firmware" value={device.firmwareVersion && <span className="font-mono">{device.firmwareVersion}</span>} />
+                  <Row label="Customer" value={device.customer} />
+                  <Row label="Assignment" value={device.assignment && ASSIGNMENT_LABELS[device.assignment]} />
+                  <Row label="Contact" value={device.contact} />
+                  <Row label="Out date" value={device.outDate} />
+                  <Row label="Return date" value={device.returnDate} />
+                  <Row label="Condition" value={device.condition} />
+                  <Row label="Purchase date" value={device.purchaseDate} />
+                  <Row label="Warranty" value={device.warranty} />
+                  <Row
+                    label="Coordinates"
+                    value={device.lat != null && device.lng != null ? `${device.lat}, ${device.lng}` : null}
+                  />
+                  <Row label="Notes" value={device.notes && <span className="whitespace-pre-wrap">{device.notes}</span>} />
+                  <Row label="Added" value={new Date(device.createdAt).toLocaleDateString()} />
+                  <Row label="Updated" value={new Date(device.updatedAt).toLocaleDateString()} />
+                </dl>
+              </>
             )
           )}
         </div>

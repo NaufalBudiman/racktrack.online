@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getAppContext } from "@/lib/access";
-import { getDevice, listHistory } from "@/lib/devices";
+import { getDevice, listHistory, listSuggestions } from "@/lib/devices";
 import { canEditDevices } from "@/lib/roles";
 import { idSchema } from "@/lib/validation";
 import { DeviceDetail } from "@/components/DeviceDetail";
@@ -16,9 +16,10 @@ export default async function DevicePage({ params }: { params: Promise<{ id: str
   if (!id.success) notFound();
 
   // Scoped to the active workspace: a device from another workspace is a 404.
-  const [device, history] = await Promise.all([
+  const [device, history, suggestions] = await Promise.all([
     getDevice(workspace.workspaceId, id.data),
     listHistory(workspace.workspaceId, { deviceId: id.data, limit: 100 }),
+    listSuggestions(workspace.workspaceId),
   ]);
   if (!device) notFound();
 
@@ -29,6 +30,7 @@ export default async function DevicePage({ params }: { params: Promise<{ id: str
       history={history}
       workspaceId={workspace.workspaceId}
       canEdit={canEditDevices(workspace.role)}
+      suggestions={suggestions}
     />
   );
 }

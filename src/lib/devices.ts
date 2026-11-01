@@ -1,5 +1,5 @@
 // Server-only reads shared by the dashboard pages. Callers pass a workspace id from getAppContext().
-import { and, asc, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "./db";
 import { deviceHistory, devices, users } from "./schema";
 import type { DeviceRow, HistoryItem } from "./types";
@@ -67,4 +67,29 @@ export async function listHistory(
     createdAt: createdAt.toISOString(),
     by: userName ?? userEmail ?? null,
   }));
+}
+
+/** Existing customers and storage locations, most used first, for form suggestions. */
+export async function listSuggestions(workspaceId: string): Promise<{ customers: string[]; locations: string[] }> {
+  const db = getDb();
+  const [customers, locations] = await Promise.all([
+    db
+      .select({ v: devices.customer, n: count() })
+      .from(devices)
+      .where(and(eq(devices.workspaceId, workspaceId), isNotNull(devices.customer)))
+      .groupBy(devices.customer)
+      .orderBy(desc(count()))
+      .limit(200),
+    db
+      .select({ v: devices.location, n: count() })
+      .from(devices)
+      .where(and(eq(devices.workspaceId, workspaceId), isNotNull(devices.location)))
+      .groupBy(devices.location)
+      .orderBy(desc(count()))
+      .limit(200),
+  ]);
+  return {
+    customers: customers.map((r) => r.v as string),
+    locations: locations.map((r) => r.v as string),
+  };
 }

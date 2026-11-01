@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ASSIGNMENTS, CATEGORIES, STATUSES } from "./categories";
 
-const optText = (max: number) =>
+export const optText = (max: number) =>
   z
     .string()
     .trim()
@@ -9,7 +9,7 @@ const optText = (max: number) =>
     .nullish()
     .transform((v) => (v ? v : null));
 
-const optDate = z
+export const optDate = z
   .string()
   .trim()
   .nullish()
@@ -75,3 +75,32 @@ export type DeviceInput = z.output<typeof deviceInputSchema>;
 export type DeviceFormInput = z.input<typeof deviceInputSchema>;
 
 export const idSchema = z.string().uuid("Invalid device id");
+
+// Status moves from the device action buttons. The server merges them into the device and
+// re-validates with deviceInputSchema, so the stock-vs-customer rules still hold.
+const note = optText(500);
+
+export const moveSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("checkout"),
+    customer: z.string().trim().min(1, "Customer is required").max(200, "Customer: max 200 characters"),
+    contact: optText(200),
+    assignment: z.enum(ASSIGNMENTS, "Pick Loan or Installed"),
+    outDate: optDate,
+    returnDate: optDate,
+    note,
+  }),
+  z.object({
+    type: z.literal("checkin"),
+    result: z.enum(["Available", "Faulty"], "Pick the condition"),
+    location: optText(200),
+    note,
+  }),
+  z.object({
+    type: z.literal("status"),
+    status: z.enum(["Internal", "Faulty", "Hilang", "Retired"], "Pick a valid status"),
+    note,
+  }),
+]);
+
+export type MoveInput = z.input<typeof moveSchema>;

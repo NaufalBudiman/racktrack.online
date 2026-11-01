@@ -7,7 +7,8 @@ import { ASSIGNMENT_LABELS, GROUP_COLORS, categoryLabel, groupLabel, groupOf, st
 import type { DeviceRow, HistoryItem } from "@/lib/types";
 import { deleteDevice } from "@/app/app/actions";
 import { OverdueBadge, isOverdue } from "./DeviceCard";
-import { DeviceDrawer, Row } from "./DeviceDrawer";
+import { DeviceDrawer, Row, type Suggestions } from "./DeviceDrawer";
+import { DeviceActions } from "./DeviceActions";
 import { StatusLed } from "./StatusLed";
 import { Timeline } from "./Timeline";
 
@@ -31,11 +32,13 @@ export function DeviceDetail({
   history,
   workspaceId,
   canEdit,
+  suggestions,
 }: {
   device: DeviceRow;
   history: HistoryItem[];
   workspaceId: string;
   canEdit: boolean;
+  suggestions: Suggestions;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -102,6 +105,12 @@ export function DeviceDetail({
         </div>
       </div>
 
+      {canEdit && (
+        <section className="lg lg-dark rounded-[22px] p-4">
+          <DeviceActions device={d} workspaceId={workspaceId} customers={suggestions.customers} locations={suggestions.locations} />
+        </section>
+      )}
+
       {error && (
         <p role="alert" className="rounded-xl bg-red/15 px-3 py-2 text-sm text-[#FFB3A6] shadow-[inset_0_0_0_1px_rgba(240,102,76,.55)]">
           {error}
@@ -161,6 +170,7 @@ export function DeviceDetail({
           overdue={overdue}
           startEditing
           showDetailsLink={false}
+          suggestions={suggestions}
           onClose={() => setEditing(false)}
         />
       )}
