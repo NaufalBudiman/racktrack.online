@@ -350,7 +350,11 @@ export default async function Landing() {
       <footer className="mx-auto max-w-[1180px] px-4 pb-10 sm:px-7">
         <div className="flex flex-wrap justify-between gap-3 border-t border-white/10 pt-5 font-mono text-xs text-[#97A3B3]">
           <span>© {new Date().getFullYear()} RackTrack · racktrack.online</span>
-          <span>Cipta Kreasi Inovatif</span>
+          <span className="flex gap-4">
+            <Link href="/privacy" className="hover:text-ink">Privacy</Link>
+            <Link href="/terms" className="hover:text-ink">Terms</Link>
+            <span>Cipta Kreasi Inovatif</span>
+          </span>
         </div>
       </footer>
     </div>
