@@ -81,7 +81,8 @@ export function toIsoDate(v: Cell): string {
 
 export function toCategory(v: Cell): Category {
   const s = norm(cellToString(v));
-  if (s === "poe injector") return "POE Injektor";
+  if (s === "poe injector" || s === "poe injektor") return "POE Injektor";
+  if (s === "server spare part" || s === "spare part" || s === "sparepart") return "Sparepart Server";
   if (s === "ac" || s === "wireless controller") return "Access Controller";
   if (s === "ap" || s === "access point") return "Wireless";
   const hit = CATEGORIES.find((c) => c.toLowerCase() === s);

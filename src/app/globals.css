@@ -7,48 +7,204 @@
 }
 
 html {
-  background: #0e1319;
+  background: #07090d;
 }
 
 body {
-  @apply bg-bg font-sans text-ink antialiased;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-  background-size: 32px 32px;
+  @apply font-sans text-ink antialiased;
+  /* no background here: it would paint over the fixed -z-10 <Backdrop /> */
 }
 
 ::selection {
   background: rgba(239, 155, 62, 0.35);
 }
 
-@layer components {
-  .input {
-    @apply w-full rounded border border-line bg-bg px-3 py-2 text-sm text-ink placeholder:text-muted/60 focus:border-amber focus:outline-none focus:ring-1 focus:ring-amber;
-  }
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded border px-3.5 py-2 font-mono text-xs font-semibold uppercase tracking-wider transition disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .btn-primary {
-    @apply btn border-amber bg-amber text-bg hover:bg-amber/90;
-  }
-  .btn-ghost {
-    @apply btn border-line bg-transparent text-ink hover:border-muted hover:bg-surface2;
-  }
-  .btn-danger {
-    @apply btn border-red/60 bg-transparent text-red hover:bg-red/10;
-  }
-  .label {
-    @apply mb-1 block font-mono text-[10px] uppercase tracking-widest text-muted;
+@layer base {
+  h1,
+  h2,
+  h3 {
+    text-transform: uppercase;
   }
 }
 
-/* Rivets on card corners */
-.rivet {
+@layer components {
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-[#0A0D12]/85 px-3 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-amber focus:outline-none focus:ring-1 focus:ring-amber;
+  }
+  .input option,
+  .input optgroup {
+    background: #0e1319;
+  }
+  .btn {
+    @apply inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wider transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn text-[#1D1104] hover:-translate-y-px;
+    background: linear-gradient(180deg, #ffd08a 0%, #f7a23a 55%, #e3841e 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.8),
+      inset 0 -2px 4px rgba(150, 60, 0, 0.35),
+      0 10px 28px -8px rgba(245, 150, 50, 0.6);
+  }
+  .btn-ghost {
+    @apply btn text-ink hover:bg-white/15;
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .btn-danger {
+    @apply btn text-[#FFB3A6] hover:bg-red/25;
+    background: rgba(240, 102, 76, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(240, 102, 76, 0.55);
+  }
+  .label {
+    @apply mb-1 block font-mono text-[10px] uppercase tracking-widest text-[#AEB8C5];
+  }
+  .eyebrow {
+    @apply font-mono text-xs uppercase tracking-[0.16em] text-[#FFC27A];
+  }
+  .chip {
+    @apply inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs text-[#E3E8EF];
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  }
+  .chip-on {
+    @apply text-[#FFD9A8];
+    background: rgba(255, 190, 110, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(255, 190, 110, 0.55);
+  }
+}
+
+/* in the components layer so Tailwind utilities (rounded-*, bg-*, etc.) can override */
+@layer components {
+/* ---------- Liquid glass (CSS version, works in every browser) ---------- */
+.lg {
+  position: relative;
+  isolation: isolate;
+  border-radius: 24px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.13) 0%, rgba(14, 14, 16, 0.42) 40%, rgba(10, 11, 14, 0.6) 100%);
+  backdrop-filter: blur(22px) saturate(190%) brightness(1.06);
+  -webkit-backdrop-filter: blur(22px) saturate(190%) brightness(1.06);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.5),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.08),
+    inset 0 -24px 48px -24px rgba(255, 170, 80, 0.16),
+    0 30px 60px -24px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.lg-dark {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(10, 12, 16, 0.5) 40%, rgba(8, 10, 14, 0.72));
+}
+.lg-solid {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(14, 19, 25, 0.82) 30%, rgba(10, 13, 18, 0.9));
+}
+.lg-amber {
+  background: linear-gradient(160deg, rgba(255, 200, 120, 0.42), rgba(245, 150, 50, 0.18) 45%, rgba(120, 50, 0, 0.25));
+}
+/* gradient rim + specular bloom; also used on the SVG-refraction <LiquidGlass> */
+.lg::after,
+.glass-rim::after {
+  content: "";
   position: absolute;
-  width: 5px;
-  height: 5px;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0) 55%, rgba(255, 210, 150, 0.4) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.lg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(90% 55% at 18% -5%, rgba(255, 255, 255, 0.18), transparent 60%),
+    radial-gradient(60% 40% at 100% 100%, rgba(255, 180, 90, 0.1), transparent 70%);
+}
+.glass-rim {
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.5),
+    0 20px 50px -20px rgba(0, 0, 0, 0.6);
+}
+.sheen {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  animation: sheen 7s ease-in-out infinite;
+}
+
+/* ---------- Backdrop: shapes with edges so the glass has something to bend ---------- */
+.orb {
+  position: absolute;
   border-radius: 9999px;
-  background: radial-gradient(circle at 35% 30%, #3a4659, #141b26);
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  animation: float 22s ease-in-out infinite alternate;
+}
+.halo {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255, 190, 110, 0.3);
+  pointer-events: none;
+}
+.stripes {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 24px;
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0 2px, transparent 2px 22px);
+}
+.dots {
+  position: absolute;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.2) 1.2px, transparent 1.6px);
+  background-size: 22px 22px;
+}
+.blink {
+  animation: blink 2.6s ease-in-out infinite;
+}
+
+}
+
+@keyframes float {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(40px, 50px, 0) scale(1.06); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+@keyframes sheen {
+  from { transform: translateX(-120%) skewX(-18deg); }
+  to { transform: translateX(320%) skewX(-18deg); }
+}
+
+@layer components {
+@media (max-width: 640px) {
+  .orb-main {
+    opacity: 0.45;
+  }
+  .lg {
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .blink,
+  .sheen,
+  .animate-led {
+    animation: none;
+  }
+}
 }

@@ -47,6 +47,18 @@ export const STATUS_COLORS: Record<Status, string> = {
   Hilang: "#F0664C",
 };
 
+// Display labels (English). Stored DB values stay unchanged.
+const STATUS_LABELS: Record<string, string> = { Hilang: "Missing" };
+const GROUP_LABELS: Record<string, string> = { Lainnya: "Others" };
+const CATEGORY_LABELS: Record<string, string> = {
+  "POE Injektor": "PoE Injector",
+  "Sparepart Server": "Server Spare Part",
+  Lainnya: "Other",
+};
+export const statusLabel = (s: string) => STATUS_LABELS[s] ?? s;
+export const groupLabel = (g: string) => GROUP_LABELS[g] ?? g;
+export const categoryLabel = (c: string) => CATEGORY_LABELS[c] ?? c;
+
 export function limitMessage(current: number): string {
   return `Device limit reached: free accounts can hold up to ${MAX_DEVICES_PER_ACCOUNT} devices (you have ${current}). Delete some devices to add more.`;
 }

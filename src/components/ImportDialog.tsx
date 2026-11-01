@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { readSheet } from "read-excel-file/universal";
-import { MAX_DEVICES_PER_ACCOUNT } from "@/lib/categories";
+import { MAX_DEVICES_PER_ACCOUNT, categoryLabel, statusLabel } from "@/lib/categories";
 import {
   IMPORT_FIELDS,
   cellToString,
@@ -102,24 +102,24 @@ export function ImportDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/70" onClick={() => !pending && onClose()} aria-hidden />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={() => !pending && onClose()} aria-hidden />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Import devices"
-        className="relative flex max-h-[92vh] w-full max-w-3xl flex-col rounded-t-lg border border-line bg-surface shadow-2xl sm:rounded-lg"
+        className="lg lg-solid relative flex max-h-[92vh] w-full max-w-3xl flex-col rounded-b-none rounded-t-[28px] sm:rounded-[28px]"
       >
-        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <h2 className="font-mono text-lg font-semibold">Import devices</h2>
-          <button type="button" className="btn-ghost px-2.5 py-1" onClick={onClose} aria-label="Close">✕</button>
+          <button type="button" className="btn-ghost h-10 w-10 px-0" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
           {done ? (
             <div className="py-6 text-center">
               <p className="font-mono text-2xl font-semibold text-green">{done.imported} imported</p>
               {done.skipped > 0 && (
-                <p className="mt-2 text-sm text-muted">
+                <p className="mt-2 text-sm text-[#AEB8C5]">
                   {done.skipped} row(s) skipped. {done.note}
                 </p>
               )}
@@ -132,15 +132,15 @@ export function ImportDialog({
                   type="file"
                   accept=".xlsx,.csv"
                   onChange={onPick}
-                  className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded file:border file:border-line file:bg-surface2 file:px-3 file:py-2 file:font-mono file:text-xs file:uppercase file:text-ink hover:file:border-amber"
+                  className="block w-full text-sm text-[#AEB8C5] file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-white/10 file:px-4 file:py-2 file:font-mono file:text-xs file:uppercase file:text-ink hover:file:bg-white/20"
                 />
-                <p className="mt-2 text-xs text-muted">
+                <p className="mt-2 text-xs text-[#AEB8C5]">
                   The file is read in your browser. Only the mapped columns are sent when you confirm.
                 </p>
               </div>
 
               {error && (
-                <p role="alert" className="rounded border border-red/60 bg-red/10 px-3 py-2 text-sm text-red">
+                <p role="alert" className="rounded-xl bg-red/15 px-3 py-2 text-sm text-[#FFB3A6] shadow-[inset_0_0_0_1px_rgba(240,102,76,.55)]">
                   {error}
                 </p>
               )}
@@ -154,7 +154,7 @@ export function ImportDialog({
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {IMPORT_FIELDS.map((f) => (
                         <label key={f.key} className="flex items-center gap-2">
-                          <span className="w-28 shrink-0 font-mono text-[11px] uppercase tracking-wider text-muted">
+                          <span className="w-28 shrink-0 font-mono text-[11px] uppercase tracking-wider text-[#AEB8C5]">
                             {f.label}
                           </span>
                           <select
@@ -171,15 +171,15 @@ export function ImportDialog({
                       ))}
                     </div>
                     <p className="mt-2 text-xs text-muted">
-                      Unknown types become “Lainnya”; empty or unknown status becomes “Available”. Dates: YYYY-MM-DD or DD/MM/YYYY.
+                      Unknown types become “Other”; empty or unknown status becomes “Available”. Dates: YYYY-MM-DD or DD/MM/YYYY.
                     </p>
                   </div>
 
                   <div>
                     <span className="label">Preview (first 5 rows)</span>
-                    <div className="overflow-x-auto rounded border border-line">
+                    <div className="overflow-x-auto rounded-xl bg-black/25 shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)]">
                       <table className="w-full min-w-[34rem] text-left text-xs">
-                        <thead className="bg-surface2 font-mono uppercase tracking-wider text-muted">
+                        <thead className="bg-white/[.06] font-mono uppercase tracking-wider text-[#AEB8C5]">
                           <tr>
                             {["Name", "Serial", "Type", "Status", "Location", "Customer"].map((h) => (
                               <th key={h} className="px-3 py-2 font-medium">{h}</th>
@@ -188,11 +188,11 @@ export function ImportDialog({
                         </thead>
                         <tbody>
                           {mapped.slice(0, 5).map((r, i) => (
-                            <tr key={i} className="border-t border-line/60">
+                            <tr key={i} className="border-t border-white/[.07]">
                               <td className={`px-3 py-1.5 ${r.name ? "" : "text-red"}`}>{r.name || "(missing)"}</td>
                               <td className="px-3 py-1.5 font-mono">{r.serial}</td>
-                              <td className="px-3 py-1.5">{r.category}</td>
-                              <td className="px-3 py-1.5">{r.status}</td>
+                              <td className="px-3 py-1.5">{categoryLabel(r.category)}</td>
+                              <td className="px-3 py-1.5">{statusLabel(r.status)}</td>
                               <td className="px-3 py-1.5">{r.location}</td>
                               <td className="px-3 py-1.5">{r.customer}</td>
                             </tr>
@@ -200,7 +200,7 @@ export function ImportDialog({
                         </tbody>
                       </table>
                     </div>
-                    <p className="mt-2 text-xs text-muted">
+                    <p className="mt-2 text-xs text-[#AEB8C5]">
                       {valid.length} device(s) ready
                       {missingName > 0 && <span className="text-amber"> · {missingName} row(s) without a name will be skipped</span>}
                       {" · "}
@@ -219,7 +219,7 @@ export function ImportDialog({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-line px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-white/10 px-6 py-4">
           {done ? (
             <button type="button" className="btn-primary" onClick={onClose}>Done</button>
           ) : (

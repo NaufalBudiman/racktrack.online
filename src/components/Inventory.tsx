@@ -6,8 +6,10 @@ import {
   GROUPS,
   MAX_DEVICES_PER_ACCOUNT,
   STATUSES,
-  STATUS_COLORS,
+  categoryLabel,
+  groupLabel,
   groupOf,
+  statusLabel,
   type Group,
   type Status,
 } from "@/lib/categories";
@@ -16,6 +18,7 @@ import { DeviceCard, isOverdue } from "./DeviceCard";
 import { DeviceDrawer } from "./DeviceDrawer";
 import { ImportDialog } from "./ImportDialog";
 import { StatusLed } from "./StatusLed";
+import { LiquidGlass } from "./ui/liquid-glass";
 
 function localToday(): string {
   const d = new Date();
@@ -24,6 +27,13 @@ function localToday(): string {
 }
 
 type Selected = { id: string } | "new" | null;
+
+// Text colors for the big numbers, lighter than the LED colors so they stay readable on glass.
+const NUMBER_COLORS: Record<Status, string> = {
+  Available: "#6BE3B0",
+  "In Use": "#FFE1B8",
+  Hilang: "#FF9A86",
+};
 
 export function Inventory({ devices }: { devices: DeviceRow[] }) {
   const [q, setQ] = useState("");
@@ -74,67 +84,121 @@ export function Inventory({ devices }: { devices: DeviceRow[] }) {
   }
 
   const cards: { key: "All" | Status; label: string; value: number; sub?: string }[] = [
-    { key: "All", label: "Total", value: stats.total, sub: `of ${MAX_DEVICES_PER_ACCOUNT}` },
+    { key: "All", label: "Total", value: stats.total, sub: `/${MAX_DEVICES_PER_ACCOUNT}` },
     { key: "Available", label: "Available", value: stats.Available },
     {
       key: "In Use",
       label: "In Use",
       value: stats["In Use"],
-      sub: stats.overdue ? `${stats.overdue} overdue` : undefined,
+      sub: stats.overdue ? `· ${stats.overdue} overdue` : undefined,
     },
-    { key: "Hilang", label: "Hilang", value: stats.Hilang },
+    { key: "Hilang", label: statusLabel("Hilang"), value: stats.Hilang },
   ];
 
   return (
     <div>
-      {/* stat cards */}
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="eyebrow">Dashboard</div>
+          <h1 className="mt-1.5 font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">Your inventory</h1>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" className="btn-ghost" onClick={() => setImportOpen(true)}>
+            Import
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setSelected("new")}
+            disabled={atLimit}
+            title={atLimit ? `Limit of ${MAX_DEVICES_PER_ACCOUNT} devices reached` : undefined}
+          >
+            + Add device
+          </button>
+        </div>
+      </div>
+
+      {/* stat cards (also status filters) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {cards.map((c) => {
           const active = status === c.key;
+          const amber = c.key === "In Use";
           return (
-            <button
+            <LiquidGlass
               key={c.key}
-              type="button"
-              onClick={() => setStatus(c.key === "All" || active ? "All" : c.key)}
-              aria-pressed={active}
-              className={`relative rounded-md border bg-surface p-4 text-left transition hover:bg-surface2 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber ${
-                active ? "border-amber" : "border-line"
-              }`}
+              radius={20}
+              scale={22}
+              bevelDepth={10}
+              aberration={2}
+              tint={amber ? 0.02 : 0.07}
+              className={`glass-rim ${active ? "outline outline-2 outline-offset-0 outline-amber" : ""}`}
+              style={
+                amber
+                  ? {
+                      backgroundColor: "rgba(30,16,4,.55)",
+                      backgroundImage: "linear-gradient(160deg, rgba(255,200,120,.32), rgba(245,150,50,.1) 50%, rgba(120,50,0,.15))",
+                    }
+                  : { backgroundColor: "rgba(10,12,16,.55)" }
+              }
             >
-              <span className="rivet left-1.5 top-1.5" />
-              <span className="rivet right-1.5 top-1.5" />
-              <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted">
-                {c.key !== "All" && <StatusLed status={c.key} />}
-                {c.label}
-              </div>
-              <div className="mt-1 flex items-baseline gap-2">
-                <span
-                  className="font-mono text-3xl font-semibold"
-                  style={{ color: c.key === "All" ? undefined : STATUS_COLORS[c.key] }}
+              <button
+                type="button"
+                onClick={() => setStatus(c.key === "All" || active ? "All" : c.key)}
+                aria-pressed={active}
+                className="block w-full rounded-[20px] px-4 py-3.5 text-left transition hover:bg-white/[.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber"
+              >
+                <div
+                  className={`flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.12em] ${
+                    amber ? "text-[#FFE6C6]" : "text-[#C3CBD6]"
+                  }`}
                 >
-                  {c.value}
-                </span>
-                {c.sub && (
-                  <span className={`font-mono text-[11px] ${c.sub.includes("overdue") ? "text-red" : "text-muted"}`}>
-                    {c.sub}
+                  {c.key !== "All" && <StatusLed status={c.key} />}
+                  {c.label}
+                </div>
+                <div className="mt-0.5 flex items-baseline gap-1.5">
+                  <span
+                    className="font-mono text-3xl font-semibold"
+                    style={{ color: c.key === "All" ? undefined : NUMBER_COLORS[c.key] }}
+                  >
+                    {c.value}
                   </span>
-                )}
-              </div>
-            </button>
+                  {c.sub && (
+                    <span className={`font-mono text-xs ${c.sub.includes("overdue") ? "text-[#FFB3A6]" : "text-[#97A3B3]"}`}>
+                      {c.sub}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </LiquidGlass>
           );
         })}
       </div>
 
       {/* toolbar */}
-      <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center">
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search name, serial, customer, location…"
-          aria-label="Search devices"
-          className="input lg:max-w-sm"
-        />
+      <div className="lg lg-dark mt-4 flex flex-col gap-2.5 rounded-[22px] p-2.5 lg:flex-row lg:items-center">
+        <div className="relative flex-1">
+          <svg
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8E99A8]"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-4-4" />
+          </svg>
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search name, serial, customer, location…"
+            aria-label="Search devices"
+            className="input pl-10"
+          />
+        </div>
         <div className="grid grid-cols-3 gap-2 lg:flex">
           <select
             aria-label="Group"
@@ -147,13 +211,13 @@ export function Inventory({ devices }: { devices: DeviceRow[] }) {
           >
             <option value="All">All groups</option>
             {GROUPS.map((g) => (
-              <option key={g} value={g}>{g}</option>
+              <option key={g} value={g}>{groupLabel(g)}</option>
             ))}
           </select>
-          <select aria-label="Type" className="input lg:w-44" value={type} onChange={(e) => setType(e.target.value)}>
+          <select aria-label="Type" className="input lg:w-48" value={type} onChange={(e) => setType(e.target.value)}>
             <option value="All">All types</option>
             {typeOptions.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>{categoryLabel(t)}</option>
             ))}
           </select>
           <select
@@ -162,49 +226,35 @@ export function Inventory({ devices }: { devices: DeviceRow[] }) {
             value={status}
             onChange={(e) => setStatus(e.target.value as Status | "All")}
           >
-            <option value="All">All status</option>
+            <option value="All">All statuses</option>
             {STATUSES.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>{statusLabel(s)}</option>
             ))}
           </select>
         </div>
-        <div className="flex gap-2 lg:ml-auto">
-          <button type="button" className="btn-ghost flex-1 lg:flex-none" onClick={() => setImportOpen(true)}>
-            Import
-          </button>
-          <button
-            type="button"
-            className="btn-primary flex-1 lg:flex-none"
-            onClick={() => setSelected("new")}
-            disabled={atLimit}
-            title={atLimit ? `Limit of ${MAX_DEVICES_PER_ACCOUNT} devices reached` : undefined}
-          >
-            + Add device
-          </button>
-        </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between font-mono text-xs text-muted">
+      <div className="mt-3 flex items-center justify-between px-1 font-mono text-xs text-[#AEB8C5]">
         <span>
           Showing {filtered.length} of {devices.length}
         </span>
         {filtersActive && (
-          <button type="button" onClick={resetFilters} className="text-amber hover:underline">
+          <button type="button" onClick={resetFilters} className="text-[#FFC27A] hover:underline">
             Clear filters
           </button>
         )}
       </div>
       {atLimit && (
-        <p className="mt-3 rounded border border-amber/50 bg-amber/10 px-3 py-2 text-sm text-amber">
+        <p className="mt-3 rounded-xl bg-amber/15 px-3 py-2 text-sm text-[#FFD9A8] shadow-[inset_0_0_0_1px_rgba(239,155,62,.5)]">
           You have reached the limit of {MAX_DEVICES_PER_ACCOUNT} devices. Delete some to add more.
         </p>
       )}
 
       {/* grid */}
       {devices.length === 0 ? (
-        <div className="mt-6 rounded-md border border-dashed border-line p-10 text-center">
+        <div className="lg lg-dark mt-6 p-10 text-center">
           <h2 className="font-mono text-lg font-semibold">Your rack is empty</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-muted">
+          <p className="mx-auto mt-2 max-w-md text-sm text-[#BAC3CF]">
             Add your first device, or import an existing .xlsx / .csv inventory.
           </p>
           <div className="mt-5 flex justify-center gap-2">
@@ -213,7 +263,7 @@ export function Inventory({ devices }: { devices: DeviceRow[] }) {
           </div>
         </div>
       ) : filtered.length === 0 ? (
-        <p className="mt-10 text-center text-sm text-muted">No devices match your filters.</p>
+        <p className="mt-10 text-center text-sm text-[#AEB8C5]">No devices match your filters.</p>
       ) : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((d) => (

@@ -7,11 +7,15 @@ import {
   GROUPS,
   GROUP_COLORS,
   STATUSES,
+  categoryLabel,
+  groupLabel,
   groupOf,
+  statusLabel,
 } from "@/lib/categories";
 import type { DeviceRow } from "@/lib/types";
 import { createDevice, deleteDevice, updateDevice } from "@/app/app/actions";
 import { StatusLed } from "./StatusLed";
+import { OverdueBadge } from "./DeviceCard";
 
 type FormState = {
   name: string;
@@ -75,8 +79,8 @@ function Field({
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === null || value === undefined || value === "") return null;
   return (
-    <div className="grid grid-cols-[7.5rem_1fr] gap-3 border-b border-line/60 py-2 text-sm">
-      <dt className="font-mono text-[10px] uppercase tracking-widest text-muted">{label}</dt>
+    <div className="grid grid-cols-[7.5rem_1fr] gap-3 border-b border-white/[.08] py-2.5 text-sm">
+      <dt className="font-mono text-[10px] uppercase tracking-widest text-[#AEB8C5]">{label}</dt>
       <dd className="min-w-0 break-words text-ink/90">{value}</dd>
     </div>
   );
@@ -146,14 +150,14 @@ export function DeviceDrawer({
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-black/60" onClick={() => !pending && onClose()} aria-hidden />
+      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={() => !pending && onClose()} aria-hidden />
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={isNew ? "Add device" : device.name}
-        className="relative flex h-full w-full max-w-xl animate-slidein flex-col border-l border-line bg-surface shadow-2xl"
+        className="lg lg-solid relative flex h-full w-full max-w-xl animate-slidein flex-col rounded-none sm:my-3 sm:mr-3 sm:h-[calc(100%-1.5rem)] sm:rounded-[28px]"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-6 py-5">
           <div className="min-w-0">
             {group && device && (
               <div
@@ -161,24 +165,24 @@ export function DeviceDrawer({
                 style={{ color: GROUP_COLORS[group] }}
               >
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: GROUP_COLORS[group] }} />
-                {group} · {device.category}
+                {groupLabel(group)} · {categoryLabel(device.category)}
               </div>
             )}
-            <h2 className="truncate font-mono text-lg font-semibold">
+            <h2 className="mt-1 truncate font-mono text-lg font-semibold normal-case">
               {isNew ? "Add device" : editing ? `Edit ${device.name}` : device.name}
             </h2>
             {device && !editing && (
-              <div className="truncate font-mono text-xs text-muted">{device.serial ?? "no serial"}</div>
+              <div className="truncate font-mono text-xs text-[#97A3B3]">{device.serial ?? "no serial"}</div>
             )}
           </div>
-          <button type="button" onClick={onClose} className="btn-ghost px-2.5 py-1" aria-label="Close">
+          <button type="button" onClick={onClose} className="btn-ghost h-10 w-10 px-0" aria-label="Close">
             ✕
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-5">
           {error && (
-            <p role="alert" className="mb-4 rounded border border-red/60 bg-red/10 px-3 py-2 text-sm text-red">
+            <p role="alert" className="mb-4 rounded-xl bg-red/15 px-3 py-2 text-sm text-[#FFB3A6] shadow-[inset_0_0_0_1px_rgba(240,102,76,.55)]">
               {error}
             </p>
           )}
@@ -194,9 +198,9 @@ export function DeviceDrawer({
               <Field label="Type">
                 <select className="input" value={form.category} onChange={set("category")}>
                   {GROUPS.map((g) => (
-                    <optgroup key={g} label={g}>
+                    <optgroup key={g} label={groupLabel(g)}>
                       {CATEGORY_GROUPS[g].map((c) => (
-                        <option key={c} value={c}>{c}</option>
+                        <option key={c} value={c}>{categoryLabel(c)}</option>
                       ))}
                     </optgroup>
                   ))}
@@ -205,7 +209,7 @@ export function DeviceDrawer({
               <Field label="Status">
                 <select className="input" value={form.status} onChange={set("status")}>
                   {STATUSES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s} value={s}>{statusLabel(s)}</option>
                   ))}
                 </select>
               </Field>
@@ -219,7 +223,7 @@ export function DeviceDrawer({
                 <input className="input font-mono" value={form.firmwareVersion} onChange={set("firmwareVersion")} maxLength={80} />
               </Field>
 
-              <div className="col-span-2 mt-1 border-t border-line pt-3 font-mono text-[10px] uppercase tracking-widest text-amber">
+              <div className="col-span-2 mt-1 border-t border-white/10 pt-3 font-mono text-[10px] uppercase tracking-widest text-[#FFC27A]">
                 Customer / loan
               </div>
               <Field label="Customer">
@@ -235,7 +239,7 @@ export function DeviceDrawer({
                 <input type="date" className="input" value={form.returnDate} onChange={set("returnDate")} />
               </Field>
 
-              <div className="col-span-2 mt-1 border-t border-line pt-3 font-mono text-[10px] uppercase tracking-widest text-amber">
+              <div className="col-span-2 mt-1 border-t border-white/10 pt-3 font-mono text-[10px] uppercase tracking-widest text-[#FFC27A]">
                 Details
               </div>
               <Field label="Condition">
@@ -265,12 +269,8 @@ export function DeviceDrawer({
                   label="Status"
                   value={
                     <span className="flex items-center gap-2">
-                      <StatusLed status={device.status} /> {device.status}
-                      {overdue && (
-                        <span className="rounded border border-red/60 bg-red/10 px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wider text-red">
-                          Overdue
-                        </span>
-                      )}
+                      <StatusLed status={device.status} /> {statusLabel(device.status)}
+                      {overdue && <OverdueBadge />}
                     </span>
                   }
                 />
@@ -296,7 +296,7 @@ export function DeviceDrawer({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-6 py-4">
           {editing ? (
             <>
               <button
@@ -320,7 +320,7 @@ export function DeviceDrawer({
             </>
           ) : confirmDelete ? (
             <>
-              <span className="text-sm text-red">Delete this device permanently?</span>
+              <span className="text-sm text-[#FFB3A6]">Delete this device permanently?</span>
               <div className="flex gap-2">
                 <button type="button" className="btn-ghost" disabled={pending} onClick={() => setConfirmDelete(false)}>
                   Keep
