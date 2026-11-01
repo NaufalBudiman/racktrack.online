@@ -55,6 +55,7 @@ export function Inventory({
   const group = pick<Group>(params.get("group"), GROUPS);
   const type = pick(params.get("type"), CATEGORIES);
   const status = pick<Status>(params.get("status"), STATUSES);
+  const customer = params.get("customer"); // exact match, set from the dashboard
   const view = params.get("view") === "table" ? "table" : "grid";
 
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -94,24 +95,25 @@ export function Inventory({
       if (group !== "All" && groupOf(d.category) !== group) return false;
       if (type !== "All" && d.category !== type) return false;
       if (status !== "All" && d.status !== status) return false;
+      if (customer && d.customer !== customer) return false;
       if (needle) {
         const hay = [d.name, d.serial, d.customer, d.location];
         if (!hay.some((v) => v?.toLowerCase().includes(needle))) return false;
       }
       return true;
     });
-  }, [devices, q, group, type, status]);
+  }, [devices, q, group, type, status, customer]);
 
   const typeOptions: readonly string[] =
     group === "All" ? GROUPS.flatMap((g) => CATEGORY_GROUPS[g]) : CATEGORY_GROUPS[group];
 
   const atLimit = devices.length >= MAX_DEVICES_PER_WORKSPACE;
   const selectedDevice = selected && selected !== "new" ? devices.find((d) => d.id === selected.id) ?? null : null;
-  const filtersActive = q !== "" || group !== "All" || type !== "All" || status !== "All";
+  const filtersActive = q !== "" || group !== "All" || type !== "All" || status !== "All" || !!customer;
 
   function resetFilters() {
     setQ("");
-    setParams({ q: null, group: null, type: null, status: null });
+    setParams({ q: null, group: null, type: null, status: null, customer: null });
   }
 
   const toggleStatus = (key: "All" | Status) => setParams({ status: key === "All" || status === key ? null : key });
@@ -207,6 +209,16 @@ export function Inventory({
       <div className="mt-3 flex items-center justify-between px-1 font-mono text-xs text-[#AEB8C5]">
         <span className="flex items-center gap-3">
           Showing {filtered.length} of {devices.length}
+          {customer && (
+            <button
+              type="button"
+              onClick={() => setParams({ customer: null })}
+              className="chip chip-on normal-case"
+              aria-label={`Remove customer filter ${customer}`}
+            >
+              {customer} ✕
+            </button>
+          )}
           {filtersActive && (
             <button type="button" onClick={resetFilters} className="text-[#FFC27A] hover:underline">
               Clear filters
