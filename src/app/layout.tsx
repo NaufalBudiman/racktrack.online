@@ -10,7 +10,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "RackTrack — inventory for network & IT engineers",
   description:
-    "Free inventory manager for network and IT engineers. Track switches, access points, routers, firewalls and servers: status, location, customer and firmware in one place.",
+    "Free team inventory for network and IT engineers. See what's in stock and what's at a customer: switches, access points, routers, firewalls and servers, with loans, history and roles.",
   metadataBase: new URL("https://racktrack.online"),
 };
 
