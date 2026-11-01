@@ -13,7 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
-import type { Status } from "./categories";
+import type { Assignment, Status } from "./categories";
 import type { AssignableRole, Role } from "./roles";
 
 /* ---------- Auth.js (Drizzle adapter) tables ---------- */
@@ -136,6 +136,7 @@ export const devices = pgTable(
     rackPosition: text("rack_position"),
     firmwareVersion: text("firmware_version"),
     status: text("status").$type<Status>().notNull().default("Available"),
+    assignment: text("assignment").$type<Assignment>(), // only while status = 'In Use'
     customer: text("customer"),
     contact: text("contact"),
     outDate: date("out_date", { mode: "string" }),
@@ -159,8 +160,9 @@ export const devices = pgTable(
     index("devices_workspace_idx").on(t.workspaceId),
     check(
       "devices_status_check",
-      sql`${t.status} in ('Available', 'In Use', 'Hilang')`,
+      sql`${t.status} in ('Available', 'In Use', 'Internal', 'Faulty', 'Hilang', 'Retired')`,
     ),
+    check("devices_assignment_check", sql`${t.assignment} in ('loan', 'installed')`),
   ],
 );
 

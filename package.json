@@ -10,6 +10,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:migrate-workspaces": "tsx scripts/migrate-workspaces.ts",
+    "db:migrate-statuses": "tsx scripts/migrate-statuses.ts",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {

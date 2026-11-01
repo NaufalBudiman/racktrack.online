@@ -2,9 +2,7 @@ import { GROUP_COLORS, categoryLabel, groupOf, statusLabel } from "@/lib/categor
 import type { DeviceRow } from "@/lib/types";
 import { StatusLed } from "./StatusLed";
 
-export function isOverdue(d: DeviceRow, today: string): boolean {
-  return d.status === "In Use" && !!d.returnDate && !!today && d.returnDate < today;
-}
+export { isOverdue } from "@/lib/stats";
 
 export function OverdueBadge() {
   return (
@@ -64,7 +62,7 @@ export function DeviceCard({
             <dd className="truncate text-ink/85">{d.customer}</dd>
           </div>
         )}
-        {d.status === "In Use" && d.returnDate && (
+        {d.status === "In Use" && d.assignment === "loan" && d.returnDate && (
           <div className="flex items-center gap-2">
             <dt className="w-14 shrink-0 font-mono text-[10px] uppercase leading-4 tracking-wider">Due</dt>
             <dd className="flex items-center gap-2 text-ink/85">

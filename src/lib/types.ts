@@ -1,4 +1,4 @@
-import type { Status } from "./categories";
+import type { Assignment, Status } from "./categories";
 
 // Device as sent to the client (no user_id).
 export type DeviceRow = {
@@ -10,6 +10,7 @@ export type DeviceRow = {
   rackPosition: string | null;
   firmwareVersion: string | null;
   status: Status;
+  assignment: Assignment | null;
   customer: string | null;
   contact: string | null;
   outDate: string | null;

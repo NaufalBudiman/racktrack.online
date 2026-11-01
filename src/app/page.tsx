@@ -154,13 +154,13 @@ export default async function Landing() {
                 </div>
                 <div className={GLASS_STAT}>
                   <div className="flex items-center gap-1.5 font-mono text-[10.5px] tracking-[0.12em] text-[#C3CBD6]">
-                    <StatusLed status="Available" /> AVAILABLE
+                    <StatusLed status="Available" /> IN STOCK
                   </div>
                   <div className="font-mono text-3xl font-semibold text-[#6BE3B0]">62</div>
                 </div>
                 <div className={`${GLASS_STAT} lg-amber`}>
                   <div className="flex items-center gap-1.5 font-mono text-[10.5px] tracking-[0.12em] text-[#FFE6C6]">
-                    <StatusLed status="In Use" /> IN USE
+                    <StatusLed status="In Use" /> AT CUSTOMER
                   </div>
                   <div className="font-mono text-3xl font-semibold text-[#FFE1B8]">
                     31<span className="text-xs font-medium text-[#FFB3A6]"> · 3 overdue</span>
@@ -182,7 +182,7 @@ export default async function Landing() {
                   Search name, serial, customer…
                 </div>
                 <span className="chip">Type: Switch</span>
-                <span className="chip chip-on">In Use</span>
+                <span className="chip chip-on">At Customer</span>
               </div>
               {ROWS.map((r) => (
                 <div
@@ -218,12 +218,14 @@ export default async function Landing() {
               <div className="eyebrow text-[#6BE3B0]">01 · Status</div>
               <h3 className="mt-2.5 font-mono text-[22px] leading-tight">Read it at a glance.</h3>
               <p className="mt-2 max-w-[440px] leading-relaxed text-[#BAC3CF]">
-                Every device gets a status LED: Available, In Use, or Missing. The summary cards up top double as filters.
+                Every device gets a status LED, so you always know what is ready in stock and what is out at a customer. The summary cards double as filters.
               </p>
             </div>
             <div className="flex flex-wrap gap-2.5">
-              <span className="chip"><StatusLed status="Available" /> Available</span>
-              <span className="chip"><StatusLed status="In Use" /> In Use</span>
+              <span className="chip"><StatusLed status="Available" /> In Stock</span>
+              <span className="chip"><StatusLed status="In Use" /> At Customer</span>
+              <span className="chip"><StatusLed status="Internal" /> Internal Use</span>
+              <span className="chip"><StatusLed status="Faulty" /> Faulty</span>
               <span className="chip"><StatusLed status="Hilang" /> Missing</span>
             </div>
           </div>

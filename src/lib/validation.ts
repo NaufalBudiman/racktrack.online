@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CATEGORIES, STATUSES } from "./categories";
+import { ASSIGNMENTS, CATEGORIES, STATUSES } from "./categories";
 
 const optText = (max: number) =>
   z
@@ -29,7 +29,11 @@ const optNum = (min: number, max: number, label: string) =>
       `${label} must be a number between ${min} and ${max}`,
     );
 
-export const deviceInputSchema = z.object({
+// Fields that only make sense while a device is at a customer.
+const CUSTOMER_FIELDS = { assignment: null, customer: null, contact: null, outDate: null, returnDate: null } as const;
+
+export const deviceInputSchema = z
+  .object({
   name: z.string().trim().min(1, "Name is required").max(120, "Name: max 120 characters"),
   serial: optText(120),
   category: z.enum(CATEGORIES, "Pick a valid type"),
@@ -47,7 +51,25 @@ export const deviceInputSchema = z.object({
   purchaseDate: optDate,
   warranty: optText(200),
   notes: optText(4000),
-});
+  assignment: z
+    .union([z.enum(ASSIGNMENTS), z.literal("")], "Pick Loan or Installed")
+    .nullish()
+    .transform((v) => v || null),
+})
+  .superRefine((d, ctx) => {
+    if (d.status !== "In Use") return;
+    if (!d.customer) ctx.addIssue({ code: "custom", path: ["customer"], message: "Customer is required for a device at a customer" });
+    if (!d.assignment) ctx.addIssue({ code: "custom", path: ["assignment"], message: "Pick Loan or Installed" });
+    if (d.assignment === "loan" && !d.returnDate)
+      ctx.addIssue({ code: "custom", path: ["returnDate"], message: "A loan needs a return date" });
+  })
+  // Keeps stock and customer data apart: only devices at a customer carry customer details.
+  // Missing devices keep them, since "lost at customer X" is worth knowing.
+  .transform((d) => {
+    if (d.status === "In Use") return d;
+    if (d.status === "Hilang") return { ...d, assignment: null };
+    return { ...d, ...CUSTOMER_FIELDS };
+  });
 
 export type DeviceInput = z.output<typeof deviceInputSchema>;
 export type DeviceFormInput = z.input<typeof deviceInputSchema>;

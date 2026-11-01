@@ -16,11 +16,12 @@ import {
   type Status,
 } from "@/lib/categories";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { deviceStats } from "@/lib/stats";
 import type { DeviceRow } from "@/lib/types";
 import { DeviceCard, OverdueBadge, isOverdue } from "./DeviceCard";
 import { DeviceDrawer } from "./DeviceDrawer";
 import { ImportDialog } from "./ImportDialog";
-import { StatTile } from "./StatTile";
+import { StatusTiles } from "./StatTile";
 import { StatusLed } from "./StatusLed";
 
 function localToday(): string {
@@ -85,14 +86,7 @@ export function Inventory({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
 
-  const stats = useMemo(() => {
-    const s = { total: devices.length, Available: 0, "In Use": 0, Hilang: 0, overdue: 0 };
-    for (const d of devices) {
-      s[d.status]++;
-      if (isOverdue(d, today)) s.overdue++;
-    }
-    return s;
-  }, [devices, today]);
+  const stats = useMemo(() => deviceStats(devices, today), [devices, today]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -148,19 +142,7 @@ export function Inventory({
       </div>
 
       {/* stat cards (also status filters) */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatTile statKey="All" label="Total" value={stats.total} sub={`/${MAX_DEVICES_PER_WORKSPACE}`} active={status === "All"} onClick={() => toggleStatus("All")} />
-        <StatTile statKey="Available" label="Available" value={stats.Available} active={status === "Available"} onClick={() => toggleStatus("Available")} />
-        <StatTile
-          statKey="In Use"
-          label="In Use"
-          value={stats["In Use"]}
-          sub={stats.overdue ? `· ${stats.overdue} overdue` : undefined}
-          active={status === "In Use"}
-          onClick={() => toggleStatus("In Use")}
-        />
-        <StatTile statKey="Hilang" label={statusLabel("Hilang")} value={stats.Hilang} active={status === "Hilang"} onClick={() => toggleStatus("Hilang")} />
-      </div>
+      <StatusTiles stats={stats} active={status} onSelect={toggleStatus} />
 
       {/* toolbar */}
       <div className="lg lg-dark mt-4 flex flex-col gap-2.5 rounded-[22px] p-2.5 lg:flex-row lg:items-center">
@@ -307,7 +289,7 @@ export function Inventory({
                     </td>
                     <td className="max-w-[12rem] truncate px-4 py-2.5 text-[#BAC3CF]">{d.customer ?? "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-[#BAC3CF]">
-                      {d.status === "In Use" && d.returnDate ? (
+                      {d.status === "In Use" && d.assignment === "loan" && d.returnDate ? (
                         <span className="flex items-center gap-2">
                           {d.returnDate}
                           {overdue && <OverdueBadge />}

@@ -5,15 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CATEGORIES,
   GROUP_COLORS,
-  MAX_DEVICES_PER_WORKSPACE,
   categoryLabel,
   groupOf,
   statusLabel,
 } from "@/lib/categories";
 import { ROLE_LABELS, canManageMembers, type Role } from "@/lib/roles";
+import { deviceStats } from "@/lib/stats";
 import type { DeviceRow, HistoryItem } from "@/lib/types";
 import { OverdueBadge, isOverdue } from "./DeviceCard";
-import { StatTile } from "./StatTile";
+import { StatusTiles } from "./StatTile";
 import { StatusLed } from "./StatusLed";
 import { Timeline } from "./Timeline";
 
@@ -53,22 +53,16 @@ export function Dashboard({
   const [today, setToday] = useState(""); // set after mount to avoid hydration mismatch
   useEffect(() => setToday(localToday()), []);
 
-  const stats = useMemo(() => {
-    const s = { total: devices.length, Available: 0, "In Use": 0, Hilang: 0, overdue: 0 };
-    for (const d of devices) {
-      s[d.status]++;
-      if (isOverdue(d, today)) s.overdue++;
-    }
-    return s;
-  }, [devices, today]);
+  const stats = useMemo(() => deviceStats(devices, today), [devices, today]);
 
-  // Overdue first (oldest due date first), then missing devices.
+  // Overdue loans first (oldest due date first), then missing, then faulty devices.
   const attention = useMemo(() => {
     const overdue = devices
       .filter((d) => isOverdue(d, today))
       .sort((a, b) => (a.returnDate ?? "").localeCompare(b.returnDate ?? ""));
     const missing = devices.filter((d) => d.status === "Hilang");
-    return [...overdue, ...missing];
+    const faulty = devices.filter((d) => d.status === "Faulty");
+    return [...overdue, ...missing, ...faulty];
   }, [devices, today]);
 
   const byCategory = useMemo(() => {
@@ -97,18 +91,10 @@ export function Dashboard({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatTile statKey="All" label="Total" value={stats.total} sub={`/${MAX_DEVICES_PER_WORKSPACE}`} href="/app/devices" />
-        <StatTile statKey="Available" label="Available" value={stats.Available} href="/app/devices?status=Available" />
-        <StatTile
-          statKey="In Use"
-          label="In Use"
-          value={stats["In Use"]}
-          sub={stats.overdue ? `· ${stats.overdue} overdue` : undefined}
-          href="/app/devices?status=In+Use"
-        />
-        <StatTile statKey="Hilang" label={statusLabel("Hilang")} value={stats.Hilang} href="/app/devices?status=Hilang" />
-      </div>
+      <StatusTiles
+        stats={stats}
+        hrefFor={(k) => (k === "All" ? "/app/devices" : `/app/devices?status=${encodeURIComponent(k)}`)}
+      />
 
       {devices.length === 0 ? (
         <Panel title="Get started">
@@ -143,7 +129,7 @@ export function Dashboard({
             }
           >
             {attention.length === 0 ? (
-              <p className="text-sm text-[#AEB8C5]">Nothing overdue or missing. Nice.</p>
+              <p className="text-sm text-[#AEB8C5]">Nothing overdue, missing or faulty. Nice.</p>
             ) : (
               <ul className="divide-y divide-white/10">
                 {attention.slice(0, ATTENTION_LIMIT).map((d) => (
@@ -153,7 +139,7 @@ export function Dashboard({
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-mono text-sm normal-case text-ink">{d.name}</div>
                         <div className="truncate text-xs text-[#97A3B3]">
-                          {d.status === "Hilang" ? statusLabel(d.status) : `${d.customer ?? "No customer"} · due ${d.returnDate}`}
+                          {d.status === "In Use" ? `${d.customer ?? "No customer"} · due ${d.returnDate}` : statusLabel(d.status)}
                         </div>
                       </div>
                       {d.status === "In Use" && <OverdueBadge />}

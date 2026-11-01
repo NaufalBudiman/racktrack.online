@@ -91,8 +91,12 @@ export function toCategory(v: Cell): Category {
 
 export function toStatus(v: Cell): Status {
   const s = norm(cellToString(v));
-  if (["in use", "inuse", "dipakai", "terpakai", "out", "dipinjam"].includes(s)) return "In Use";
+  if (["in use", "inuse", "dipakai", "terpakai", "out", "dipinjam", "at customer", "customer"].includes(s)) return "In Use";
+  if (["in stock", "stock", "ready", "tersedia", "gudang"].includes(s)) return "Available";
+  if (["internal", "internal use", "kantor"].includes(s)) return "Internal";
+  if (["faulty", "rusak", "rma", "repair", "service", "servis"].includes(s)) return "Faulty";
   if (["hilang", "lost", "missing"].includes(s)) return "Hilang";
+  if (["retired", "sold", "terjual", "dijual"].includes(s)) return "Retired";
   const hit = STATUSES.find((x) => x.toLowerCase() === s);
   return hit ?? "Available";
 }
@@ -111,6 +115,12 @@ export function mapRow(
     else if (f.key === "status") out.status = toStatus(raw);
     else if (DATE_KEYS.includes(f.key)) out[f.key] = toIsoDate(raw);
     else out[f.key] = cellToString(raw);
+  }
+  // Sheets rarely say loan vs install: a return date means a loan. "In use" with no
+  // customer means our own network.
+  if (out.status === "In Use") {
+    if (!out.customer) out.status = "Internal";
+    else out.assignment = out.returnDate ? "loan" : "installed";
   }
   return out;
 }

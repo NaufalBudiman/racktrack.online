@@ -1,5 +1,6 @@
 import Link from "next/link";
-import type { Status } from "@/lib/categories";
+import { MAX_DEVICES_PER_WORKSPACE, statusLabel, type Status } from "@/lib/categories";
+import type { DeviceStats } from "@/lib/stats";
 import { StatusLed } from "./StatusLed";
 import { LiquidGlass } from "./ui/liquid-glass";
 
@@ -7,8 +8,48 @@ import { LiquidGlass } from "./ui/liquid-glass";
 const NUMBER_COLORS: Record<Status, string> = {
   Available: "#6BE3B0",
   "In Use": "#FFE1B8",
+  Internal: "#9FE3F0",
+  Faulty: "#FBE29A",
   Hilang: "#FF9A86",
+  Retired: "#C3CBD6",
 };
+
+// Retired is left out on purpose: it's history, not inventory. It stays reachable from the status filter.
+const TILE_STATUSES: Status[] = ["Available", "In Use", "Internal", "Faulty", "Hilang"];
+
+/** Total + one tile per live status. Give `hrefFor` for links (dashboard) or `onSelect` for filter toggles. */
+export function StatusTiles({
+  stats,
+  active,
+  hrefFor,
+  onSelect,
+}: {
+  stats: DeviceStats;
+  active?: StatKey;
+  hrefFor?: (key: StatKey) => string;
+  onSelect?: (key: StatKey) => void;
+}) {
+  const props = (key: StatKey) => ({
+    active: active === key,
+    href: hrefFor?.(key),
+    onClick: onSelect ? () => onSelect(key) : undefined,
+  });
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      <StatTile statKey="All" label="Total" value={stats.total} sub={`/${MAX_DEVICES_PER_WORKSPACE}`} {...props("All")} />
+      {TILE_STATUSES.map((s) => (
+        <StatTile
+          key={s}
+          statKey={s}
+          label={statusLabel(s)}
+          value={stats[s]}
+          sub={s === "In Use" && stats.overdue ? `· ${stats.overdue} overdue` : undefined}
+          {...props(s)}
+        />
+      ))}
+    </div>
+  );
+}
 
 export type StatKey = "All" | Status;
 

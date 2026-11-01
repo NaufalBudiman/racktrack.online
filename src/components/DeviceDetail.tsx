@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { GROUP_COLORS, categoryLabel, groupLabel, groupOf, statusLabel } from "@/lib/categories";
+import { ASSIGNMENT_LABELS, GROUP_COLORS, categoryLabel, groupLabel, groupOf, statusLabel } from "@/lib/categories";
 import type { DeviceRow, HistoryItem } from "@/lib/types";
 import { deleteDevice } from "@/app/app/actions";
 import { OverdueBadge, isOverdue } from "./DeviceCard";
@@ -121,6 +121,7 @@ export function DeviceDetail({
               }
             />
             <Row label="Customer" value={d.customer ?? "—"} />
+            <Row label="Assignment" value={d.assignment && ASSIGNMENT_LABELS[d.assignment]} />
             <Row label="Contact" value={d.contact} />
             <Row label="Out date" value={d.outDate} />
             <Row label="Return date" value={d.returnDate} />

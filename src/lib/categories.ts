@@ -38,17 +38,46 @@ export const GROUP_COLORS: Record<Group, string> = {
   Lainnya: "#8B97A8",
 };
 
-export const STATUSES = ["Available", "In Use", "Hilang"] as const;
+// Stored values never get renamed (labels below are what users see):
+//   Available = in stock at the office, ready to use
+//   In Use    = at a customer (customer required; assignment = loan or installed)
+//   Internal  = used on our own network
+//   Faulty    = broken / RMA, not usable
+//   Hilang    = missing
+//   Retired   = sold or written off, kept for the record
+export const STATUSES = ["Available", "In Use", "Internal", "Faulty", "Hilang", "Retired"] as const;
 export type Status = (typeof STATUSES)[number];
 
 export const STATUS_COLORS: Record<Status, string> = {
   Available: "#4FD199",
   "In Use": "#EF9B3E",
+  Internal: "#5DC9E0",
+  Faulty: "#F2C14E",
   Hilang: "#F0664C",
+  Retired: "#8B97A8",
 };
 
+export const STATUS_HINTS: Record<Status, string> = {
+  Available: "In the office, ready to use",
+  "In Use": "With a customer",
+  Internal: "Used on our own network",
+  Faulty: "Broken or out for repair",
+  Hilang: "Can't be found",
+  Retired: "Sold or written off",
+};
+
+// At a customer: a loan comes back (return date required), an install stays.
+export const ASSIGNMENTS = ["loan", "installed"] as const;
+export type Assignment = (typeof ASSIGNMENTS)[number];
+export const ASSIGNMENT_LABELS: Record<Assignment, string> = { loan: "Loan", installed: "Installed" };
+
 // Display labels (English). Stored DB values stay unchanged.
-const STATUS_LABELS: Record<string, string> = { Hilang: "Missing" };
+const STATUS_LABELS: Record<string, string> = {
+  Available: "In Stock",
+  "In Use": "At Customer",
+  Internal: "Internal Use",
+  Hilang: "Missing",
+};
 const GROUP_LABELS: Record<string, string> = { Lainnya: "Others" };
 const CATEGORY_LABELS: Record<string, string> = {
   "POE Injektor": "PoE Injector",
@@ -63,5 +92,7 @@ export function limitMessage(current: number): string {
   return `Device limit reached: a workspace can hold up to ${MAX_DEVICES_PER_WORKSPACE} devices (you have ${current}). Delete some devices to add more.`;
 }
 
-// History text embeds stored status values ("Status: Available → Hilang"); show them in English.
-export const historyLabel = (text: string) => text.replace(/\bHilang\b/g, statusLabel("Hilang"));
+// History text embeds stored status values ("Status: Available → Hilang"); show the labels instead.
+const STATUS_IN_TEXT = /\b(In Use|Available|Internal|Hilang)\b/g;
+export const historyLabel = (text: string) =>
+  text.startsWith("Status:") ? text.replace(STATUS_IN_TEXT, (m) => statusLabel(m)) : text;

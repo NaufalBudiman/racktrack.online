@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ASSIGNMENTS,
+  ASSIGNMENT_LABELS,
   CATEGORY_GROUPS,
   GROUPS,
   GROUP_COLORS,
   STATUSES,
+  STATUS_HINTS,
   categoryLabel,
   groupLabel,
   groupOf,
@@ -23,6 +26,7 @@ type FormState = {
   serial: string;
   category: string;
   status: string;
+  assignment: string;
   location: string;
   rackPosition: string;
   firmwareVersion: string;
@@ -44,6 +48,7 @@ function toForm(d: DeviceRow | null): FormState {
     serial: d?.serial ?? "",
     category: d?.category ?? "Switch",
     status: d?.status ?? "Available",
+    assignment: d?.assignment ?? "",
     location: d?.location ?? "",
     rackPosition: d?.rackPosition ?? "",
     firmwareVersion: d?.firmwareVersion ?? "",
@@ -233,6 +238,7 @@ export function DeviceDrawer({
                     <option key={s} value={s}>{statusLabel(s)}</option>
                   ))}
                 </select>
+                <span className="mt-1 block text-xs text-[#97A3B3]">{STATUS_HINTS[form.status as keyof typeof STATUS_HINTS]}</span>
               </Field>
               <Field label="Location">
                 <input className="input" value={form.location} onChange={set("location")} maxLength={200} />
@@ -244,21 +250,53 @@ export function DeviceDrawer({
                 <input className="input font-mono" value={form.firmwareVersion} onChange={set("firmwareVersion")} maxLength={80} />
               </Field>
 
-              <div className="col-span-2 mt-1 border-t border-white/10 pt-3 font-mono text-[10px] uppercase tracking-widest text-[#FFC27A]">
-                Customer / loan
-              </div>
-              <Field label="Customer">
-                <input className="input" value={form.customer} onChange={set("customer")} maxLength={200} />
-              </Field>
-              <Field label="Contact">
-                <input className="input" value={form.contact} onChange={set("contact")} maxLength={200} />
-              </Field>
-              <Field label="Out date">
-                <input type="date" className="input" value={form.outDate} onChange={set("outDate")} />
-              </Field>
-              <Field label="Return date">
-                <input type="date" className="input" value={form.returnDate} onChange={set("returnDate")} />
-              </Field>
+              {/* Customer details only exist while a device is at a customer (or went missing there). */}
+              {(form.status === "In Use" || form.status === "Hilang") && (
+                <>
+                  <div className="col-span-2 mt-1 border-t border-white/10 pt-3 font-mono text-[10px] uppercase tracking-widest text-[#FFC27A]">
+                    {form.status === "In Use" ? "At customer" : "Last known customer"}
+                  </div>
+                  <Field label={form.status === "In Use" ? "Customer *" : "Customer"}>
+                    <input
+                      className="input"
+                      value={form.customer}
+                      onChange={set("customer")}
+                      maxLength={200}
+                      required={form.status === "In Use"}
+                    />
+                  </Field>
+                  <Field label="Contact">
+                    <input className="input" value={form.contact} onChange={set("contact")} maxLength={200} />
+                  </Field>
+                  {form.status === "In Use" && (
+                    <>
+                      <Field label="Loan or installed? *" full>
+                        <select className="input" value={form.assignment} onChange={set("assignment")} required>
+                          <option value="" disabled>Pick one…</option>
+                          {ASSIGNMENTS.map((a) => (
+                            <option key={a} value={a}>
+                              {ASSIGNMENT_LABELS[a]}
+                              {a === "loan" ? " (comes back, needs a return date)" : " (stays with the customer)"}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Out date">
+                        <input type="date" className="input" value={form.outDate} onChange={set("outDate")} />
+                      </Field>
+                      <Field label={form.assignment === "loan" ? "Return date *" : "Return date"}>
+                        <input
+                          type="date"
+                          className="input"
+                          value={form.returnDate}
+                          onChange={set("returnDate")}
+                          required={form.assignment === "loan"}
+                        />
+                      </Field>
+                    </>
+                  )}
+                </>
+              )}
 
               <div className="col-span-2 mt-1 border-t border-white/10 pt-3 font-mono text-[10px] uppercase tracking-widest text-[#FFC27A]">
                 Details
@@ -299,6 +337,7 @@ export function DeviceDrawer({
                 <Row label="Rack / port" value={device.rackPosition} />
                 <Row label="Firmware" value={device.firmwareVersion && <span className="font-mono">{device.firmwareVersion}</span>} />
                 <Row label="Customer" value={device.customer} />
+                <Row label="Assignment" value={device.assignment && ASSIGNMENT_LABELS[device.assignment]} />
                 <Row label="Contact" value={device.contact} />
                 <Row label="Out date" value={device.outDate} />
                 <Row label="Return date" value={device.returnDate} />
