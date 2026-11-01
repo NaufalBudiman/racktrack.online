@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
+import { z } from "zod";
 import { authorize } from "@/lib/access";
 import { getDb } from "@/lib/db";
 import { deviceHistory, devices } from "@/lib/schema";
@@ -222,4 +223,38 @@ export async function moveDevice(workspaceId: unknown, id: unknown, move: unknow
 
   revalidatePath("/app", "layout");
   return { ok: true };
+}
+
+const mergeSchema = z.object({
+  field: z.enum(["customer", "location"]),
+  from: z.array(z.string().min(1).max(200)).min(1).max(20),
+  to: z.string().trim().min(1, "Pick the name to keep").max(200),
+});
+
+/** Data cleanup: rename every device's customer/location in `from` to `to`, with a history row each. */
+export async function mergeValues(workspaceId: unknown, input: unknown): Promise<ActionResult<{ changed: number }>> {
+  const auth = await authorize(workspaceId, "editor");
+  if (!auth.ok) return auth;
+  const parsed = mergeSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const { field, to } = parsed.data;
+  const from = parsed.data.from.filter((v) => v !== to);
+  if (from.length === 0) return { ok: true, changed: 0 };
+
+  const db = getDb();
+  const column = field === "customer" ? devices.customer : devices.location;
+  const scope = and(eq(devices.workspaceId, auth.workspaceId), inArray(column, from));
+  const rows = await db.select({ id: devices.id, value: column }).from(devices).where(scope);
+  if (rows.length === 0) return { ok: true, changed: 0 };
+
+  const label = field === "customer" ? "Customer" : "Location";
+  await db.batch([
+    db.update(devices).set({ [field]: to, updatedAt: new Date() }).where(scope),
+    db.insert(deviceHistory).values(
+      rows.map((r) => ({ deviceId: r.id, userId: auth.userId, text: `${label}: ${r.value} → ${to} (merged)` })),
+    ),
+  ]);
+
+  revalidatePath("/app", "layout");
+  return { ok: true, changed: rows.length };
 }

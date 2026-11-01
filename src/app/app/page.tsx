@@ -20,6 +20,7 @@ export default async function DashboardPage() {
     <Dashboard
       devices={devices}
       history={history}
+      workspaceId={workspace.workspaceId}
       workspaceName={workspace.name}
       role={workspace.role}
       canEdit={canEditDevices(workspace.role)}

@@ -16,6 +16,7 @@ import { OverdueBadge, isOverdue } from "./DeviceCard";
 import { StatusTiles } from "./StatTile";
 import { StatusLed } from "./StatusLed";
 import { Timeline } from "./Timeline";
+import { nudgeCount, readDismissed } from "./CleanupView";
 
 function localToday(): string {
   const d = new Date();
@@ -85,12 +86,14 @@ function BigPanel({
 export function Dashboard({
   devices,
   history,
+  workspaceId,
   workspaceName,
   role,
   canEdit,
 }: {
   devices: DeviceRow[];
   history: HistoryItem[];
+  workspaceId: string;
   workspaceName: string;
   role: Role;
   canEdit: boolean;
@@ -99,6 +102,8 @@ export function Dashboard({
   useEffect(() => setToday(localToday()), []);
 
   const stats = useMemo(() => deviceStats(devices, today), [devices, today]);
+  const [toClean, setToClean] = useState(0); // needs localStorage, so computed after mount
+  useEffect(() => setToClean(nudgeCount(devices, readDismissed(workspaceId))), [devices, workspaceId]);
 
   // Overdue loans first (oldest due date first), then missing, then faulty devices.
   const attention = useMemo(() => {
@@ -145,6 +150,18 @@ export function Dashboard({
           </div>
         )}
       </div>
+
+      {toClean > 0 && (
+        <Link
+          href="/app/cleanup"
+          className="flex items-center justify-between gap-3 rounded-xl bg-amber/10 px-4 py-2.5 text-sm text-[#FFE1B8] shadow-[inset_0_0_0_1px_rgba(239,155,62,.45)] transition hover:bg-amber/15"
+        >
+          <span>
+            {toClean} record{toClean === 1 ? "" : "s"} look inconsistent (leftover customer details or look-alike names).
+          </span>
+          <span className="shrink-0 font-mono text-xs text-[#FFC27A]">Review →</span>
+        </Link>
+      )}
 
       <StatusTiles
         stats={stats}
