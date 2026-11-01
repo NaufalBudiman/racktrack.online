@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { readSheet } from "read-excel-file/universal";
-import { MAX_DEVICES_PER_ACCOUNT, categoryLabel, statusLabel } from "@/lib/categories";
+import { MAX_DEVICES_PER_WORKSPACE, categoryLabel, statusLabel } from "@/lib/categories";
 import {
   IMPORT_FIELDS,
   cellToString,
@@ -33,9 +33,11 @@ async function parseFile(file: File): Promise<Cell[][]> {
 }
 
 export function ImportDialog({
+  workspaceId,
   currentCount,
   onClose,
 }: {
+  workspaceId: string;
   currentCount: number;
   onClose: () => void;
 }) {
@@ -85,12 +87,12 @@ export function ImportDialog({
   const valid = mapped.filter((r) => r.name);
   const missingName = mapped.length - valid.length;
   const nameMapped = mapping ? mapping.name >= 0 : false;
-  const overLimit = currentCount + valid.length > MAX_DEVICES_PER_ACCOUNT;
+  const overLimit = currentCount + valid.length > MAX_DEVICES_PER_WORKSPACE;
 
   function submit() {
     setError(null);
     startTransition(async () => {
-      const res = await importDevices(valid);
+      const res = await importDevices(workspaceId, valid);
       if (!res.ok) {
         setError(res.error);
         return;
@@ -204,12 +206,12 @@ export function ImportDialog({
                       {valid.length} device(s) ready
                       {missingName > 0 && <span className="text-amber"> · {missingName} row(s) without a name will be skipped</span>}
                       {" · "}
-                      you have {currentCount} of {MAX_DEVICES_PER_ACCOUNT}
+                      you have {currentCount} of {MAX_DEVICES_PER_WORKSPACE}
                     </p>
                     {!nameMapped && <p className="mt-1 text-xs text-red">Map the Name column to continue.</p>}
                     {overLimit && (
                       <p className="mt-1 text-xs text-red">
-                        This import would exceed the {MAX_DEVICES_PER_ACCOUNT}-device limit.
+                        This import would exceed the {MAX_DEVICES_PER_WORKSPACE}-device limit.
                       </p>
                     )}
                   </div>

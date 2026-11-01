@@ -1,7 +1,8 @@
 /**
- * Seed script: loads seed/devices.seed.json into the account whose email is SEED_OWNER_EMAIL.
+ * Seed script: loads seed/devices.seed.json into the oldest workspace owned by SEED_OWNER_EMAIL
+ * (a personal workspace is created if they have none).
  *
- *   npm run seed            # refuses to run if the account already has devices
+ *   npm run seed            # refuses to run if that workspace already has devices
  *   npm run seed -- --append  # add on top of existing devices (still capped at 300)
  *
  * If that user has not signed in yet, the user row is created; Google login later
@@ -12,9 +13,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { count, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import * as schema from "../src/lib/schema";
-import { MAX_DEVICES_PER_ACCOUNT } from "../src/lib/categories";
+import { MAX_DEVICES_PER_WORKSPACE } from "../src/lib/categories";
 import { deviceInputSchema } from "../src/lib/validation";
 
 config({ path: ".env.local" });
@@ -35,7 +36,7 @@ async function main() {
   if (!Array.isArray(raw)) throw new Error("seed/devices.seed.json must be a JSON array");
 
   const db = drizzle(neon(url), { schema });
-  const { users, devices, deviceHistory } = schema;
+  const { users, devices, deviceHistory, workspaces, workspaceMembers } = schema;
 
   // 1. find or create the owner
   let [owner] = await db.select().from(users).where(eq(users.email, email));
@@ -44,16 +45,35 @@ async function main() {
     console.log(`Created user row for ${email} (will link on first Google sign-in).`);
   }
 
-  // 2. guard against double-seeding and the per-account limit
+  // 2. find or create the owner's workspace (same naming as the app's personal workspace)
+  let [membership] = await db
+    .select({ workspaceId: workspaceMembers.workspaceId })
+    .from(workspaceMembers)
+    .where(and(eq(workspaceMembers.userId, owner.id), eq(workspaceMembers.role, "owner")))
+    .orderBy(asc(workspaceMembers.createdAt))
+    .limit(1);
+  if (!membership) {
+    const first = owner.name?.trim().split(/\s+/)[0];
+    const workspaceId = crypto.randomUUID();
+    await db.batch([
+      db.insert(workspaces).values({ id: workspaceId, name: first ? `${first}'s workspace` : "My workspace", createdBy: owner.id }),
+      db.insert(workspaceMembers).values({ workspaceId, userId: owner.id, role: "owner" }),
+    ]);
+    membership = { workspaceId };
+    console.log(`Created a workspace for ${email}.`);
+  }
+  const { workspaceId } = membership;
+
+  // 3. guard against double-seeding and the per-workspace limit
   const [{ n }] = await db
     .select({ n: count() })
     .from(devices)
-    .where(eq(devices.userId, owner.id));
+    .where(eq(devices.workspaceId, workspaceId));
   if (n > 0 && !append) {
-    throw new Error(`${email} already has ${n} devices. Re-run with --append to add more.`);
+    throw new Error(`${email}'s workspace already has ${n} devices. Re-run with --append to add more.`);
   }
 
-  // 3. validate with the same schema the app uses
+  // 4. validate with the same schema the app uses
   const rows: { input: ReturnType<typeof deviceInputSchema.parse>; history: SeedHistory[] }[] = [];
   raw.forEach((item, i) => {
     const parsed = deviceInputSchema.safeParse(item);
@@ -64,13 +84,13 @@ async function main() {
     rows.push({ input: parsed.data, history: Array.isArray(item.history) ? item.history : [] });
   });
 
-  if (n + rows.length > MAX_DEVICES_PER_ACCOUNT) {
+  if (n + rows.length > MAX_DEVICES_PER_WORKSPACE) {
     throw new Error(
-      `Would exceed the ${MAX_DEVICES_PER_ACCOUNT}-device limit (have ${n}, adding ${rows.length}).`,
+      `Would exceed the ${MAX_DEVICES_PER_WORKSPACE}-device limit (have ${n}, adding ${rows.length}).`,
     );
   }
 
-  // 4. insert devices + history in one transaction
+  // 5. insert devices + history in one transaction
   const withIds = rows.map((r) => ({ ...r, id: crypto.randomUUID() }));
   const historyRows = withIds.flatMap((r) => {
     const entries = r.history.filter((h) => h.text);
@@ -84,7 +104,7 @@ async function main() {
   });
 
   await db.batch([
-    db.insert(devices).values(withIds.map((r) => ({ ...r.input, id: r.id, userId: owner.id }))),
+    db.insert(devices).values(withIds.map((r) => ({ ...r.input, id: r.id, workspaceId, userId: owner.id }))),
     db.insert(deviceHistory).values(historyRows),
   ]);
 

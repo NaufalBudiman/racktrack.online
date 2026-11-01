@@ -1,6 +1,6 @@
 // Single source of truth for categories, groups and statuses.
 
-export const MAX_DEVICES_PER_ACCOUNT = 300;
+export const MAX_DEVICES_PER_WORKSPACE = 300;
 
 export const GROUPS = ["Wireless", "Networking", "Lainnya"] as const;
 export type Group = (typeof GROUPS)[number];
@@ -60,5 +60,5 @@ export const groupLabel = (g: string) => GROUP_LABELS[g] ?? g;
 export const categoryLabel = (c: string) => CATEGORY_LABELS[c] ?? c;
 
 export function limitMessage(current: number): string {
-  return `Device limit reached: free accounts can hold up to ${MAX_DEVICES_PER_ACCOUNT} devices (you have ${current}). Delete some devices to add more.`;
+  return `Device limit reached: a workspace can hold up to ${MAX_DEVICES_PER_WORKSPACE} devices (you have ${current}). Delete some devices to add more.`;
 }

@@ -2,44 +2,39 @@
 
 import { revalidatePath } from "next/cache";
 import { and, count, eq } from "drizzle-orm";
-import { auth } from "@/auth";
+import { authorize } from "@/lib/access";
 import { getDb } from "@/lib/db";
 import { deviceHistory, devices } from "@/lib/schema";
-import { MAX_DEVICES_PER_ACCOUNT, limitMessage } from "@/lib/categories";
+import { MAX_DEVICES_PER_WORKSPACE, limitMessage } from "@/lib/categories";
 import { deviceInputSchema, idSchema, type DeviceInput } from "@/lib/validation";
 import type { ActionResult } from "@/lib/types";
 
-// Every query below filters by the session user's id. Never trust ids from the client alone.
-async function currentUserId(): Promise<string | null> {
-  const session = await auth();
-  return session?.user?.id ?? null;
-}
+// Every query below filters by a workspace the session user is a member of (checked by
+// `authorize`). Never trust ids from the client alone.
 
-const NOT_SIGNED_IN = { ok: false, error: "You are signed out. Please sign in again." } as const;
-
-async function countDevices(userId: string): Promise<number> {
+async function countDevices(workspaceId: string): Promise<number> {
   const [row] = await getDb()
     .select({ n: count() })
     .from(devices)
-    .where(eq(devices.userId, userId));
+    .where(eq(devices.workspaceId, workspaceId));
   return row?.n ?? 0;
 }
 
-export async function createDevice(input: unknown): Promise<ActionResult<{ id: string }>> {
-  const userId = await currentUserId();
-  if (!userId) return NOT_SIGNED_IN;
+export async function createDevice(workspaceId: unknown, input: unknown): Promise<ActionResult<{ id: string }>> {
+  const auth = await authorize(workspaceId, "editor");
+  if (!auth.ok) return auth;
 
   const parsed = deviceInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
-  const n = await countDevices(userId);
-  if (n >= MAX_DEVICES_PER_ACCOUNT) return { ok: false, error: limitMessage(n) };
+  const n = await countDevices(auth.workspaceId);
+  if (n >= MAX_DEVICES_PER_WORKSPACE) return { ok: false, error: limitMessage(n) };
 
   const db = getDb();
   const id = crypto.randomUUID();
   await db.batch([
-    db.insert(devices).values({ ...parsed.data, id, userId }),
-    db.insert(deviceHistory).values({ deviceId: id, text: "Device added." }),
+    db.insert(devices).values({ ...parsed.data, id, workspaceId: auth.workspaceId, userId: auth.userId }),
+    db.insert(deviceHistory).values({ deviceId: id, userId: auth.userId, text: "Device added." }),
   ]);
 
   revalidatePath("/app");
@@ -48,9 +43,9 @@ export async function createDevice(input: unknown): Promise<ActionResult<{ id: s
 
 const show = (v: string | null) => v ?? "—";
 
-export async function updateDevice(id: unknown, input: unknown): Promise<ActionResult> {
-  const userId = await currentUserId();
-  if (!userId) return NOT_SIGNED_IN;
+export async function updateDevice(workspaceId: unknown, id: unknown, input: unknown): Promise<ActionResult> {
+  const auth = await authorize(workspaceId, "editor");
+  if (!auth.ok) return auth;
 
   const idParsed = idSchema.safeParse(id);
   if (!idParsed.success) return { ok: false, error: "Invalid device id." };
@@ -61,7 +56,7 @@ export async function updateDevice(id: unknown, input: unknown): Promise<ActionR
   const [existing] = await db
     .select()
     .from(devices)
-    .where(and(eq(devices.id, idParsed.data), eq(devices.userId, userId)));
+    .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId)));
   if (!existing) return { ok: false, error: "Device not found." };
 
   const next: DeviceInput = parsed.data;
@@ -75,12 +70,12 @@ export async function updateDevice(id: unknown, input: unknown): Promise<ActionR
   const update = db
     .update(devices)
     .set({ ...next, updatedAt: new Date() })
-    .where(and(eq(devices.id, idParsed.data), eq(devices.userId, userId)));
+    .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId)));
 
   if (changes.length > 0) {
     await db.batch([
       update,
-      db.insert(deviceHistory).values(changes.map((text) => ({ deviceId: idParsed.data, text }))),
+      db.insert(deviceHistory).values(changes.map((text) => ({ deviceId: idParsed.data, userId: auth.userId, text }))),
     ]);
   } else {
     await update;
@@ -90,9 +85,9 @@ export async function updateDevice(id: unknown, input: unknown): Promise<ActionR
   return { ok: true };
 }
 
-export async function deleteDevice(id: unknown): Promise<ActionResult> {
-  const userId = await currentUserId();
-  if (!userId) return NOT_SIGNED_IN;
+export async function deleteDevice(workspaceId: unknown, id: unknown): Promise<ActionResult> {
+  const auth = await authorize(workspaceId, "editor");
+  if (!auth.ok) return auth;
 
   const idParsed = idSchema.safeParse(id);
   if (!idParsed.success) return { ok: false, error: "Invalid device id." };
@@ -100,24 +95,25 @@ export async function deleteDevice(id: unknown): Promise<ActionResult> {
   // History rows are removed by ON DELETE CASCADE.
   await getDb()
     .delete(devices)
-    .where(and(eq(devices.id, idParsed.data), eq(devices.userId, userId)));
+    .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId)));
 
   revalidatePath("/app");
   return { ok: true };
 }
 
 export async function importDevices(
+  workspaceId: unknown,
   rows: unknown,
 ): Promise<ActionResult<{ imported: number; skipped: number; skippedNote: string }>> {
-  const userId = await currentUserId();
-  if (!userId) return NOT_SIGNED_IN;
+  const auth = await authorize(workspaceId, "editor");
+  if (!auth.ok) return auth;
 
   if (!Array.isArray(rows)) return { ok: false, error: "Invalid import data." };
   if (rows.length === 0) return { ok: false, error: "Nothing to import." };
-  if (rows.length > MAX_DEVICES_PER_ACCOUNT)
+  if (rows.length > MAX_DEVICES_PER_WORKSPACE)
     return {
       ok: false,
-      error: `This file has ${rows.length} rows. You can import at most ${MAX_DEVICES_PER_ACCOUNT} devices per account.`,
+      error: `This file has ${rows.length} rows. You can import at most ${MAX_DEVICES_PER_WORKSPACE} devices per workspace.`,
     };
 
   const valid: DeviceInput[] = [];
@@ -132,23 +128,30 @@ export async function importDevices(
   if (valid.length === 0)
     return { ok: false, error: `No valid rows to import (${problems.join("; ")}).` };
 
-  const n = await countDevices(userId);
-  const remaining = MAX_DEVICES_PER_ACCOUNT - n;
+  const n = await countDevices(auth.workspaceId);
+  const remaining = MAX_DEVICES_PER_WORKSPACE - n;
   if (valid.length > remaining) {
     return {
       ok: false,
-      error: `Import would exceed the ${MAX_DEVICES_PER_ACCOUNT}-device limit: you have ${n}, this file adds ${valid.length}, and only ${Math.max(remaining, 0)} slot(s) are left. Nothing was imported.`,
+      error: `Import would exceed the ${MAX_DEVICES_PER_WORKSPACE}-device limit: this workspace has ${n}, this file adds ${valid.length}, and only ${Math.max(remaining, 0)} slot(s) are left. Nothing was imported.`,
     };
   }
 
   const db = getDb();
-  const withIds = valid.map((v) => ({ ...v, id: crypto.randomUUID(), userId }));
+  const withIds = valid.map((v) => ({
+    ...v,
+    id: crypto.randomUUID(),
+    workspaceId: auth.workspaceId,
+    userId: auth.userId,
+  }));
   // One batch = one transaction: all rows are imported or none.
   await db.batch([
     db.insert(devices).values(withIds),
     db
       .insert(deviceHistory)
-      .values(withIds.map((d) => ({ deviceId: d.id, text: "Imported from spreadsheet." }))),
+      .values(
+        withIds.map((d) => ({ deviceId: d.id, userId: auth.userId, text: "Imported from spreadsheet." })),
+      ),
   ]);
 
   revalidatePath("/app");

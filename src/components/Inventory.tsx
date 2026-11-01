@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   CATEGORY_GROUPS,
   GROUPS,
-  MAX_DEVICES_PER_ACCOUNT,
+  MAX_DEVICES_PER_WORKSPACE,
   STATUSES,
   categoryLabel,
   groupLabel,
@@ -13,6 +14,7 @@ import {
   type Group,
   type Status,
 } from "@/lib/categories";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
 import type { DeviceRow } from "@/lib/types";
 import { DeviceCard, isOverdue } from "./DeviceCard";
 import { DeviceDrawer } from "./DeviceDrawer";
@@ -35,7 +37,19 @@ const NUMBER_COLORS: Record<Status, string> = {
   Hilang: "#FF9A86",
 };
 
-export function Inventory({ devices }: { devices: DeviceRow[] }) {
+export function Inventory({
+  devices,
+  workspaceId,
+  workspaceName,
+  role,
+  canEdit,
+}: {
+  devices: DeviceRow[];
+  workspaceId: string;
+  workspaceName: string;
+  role: Role;
+  canEdit: boolean;
+}) {
   const [q, setQ] = useState("");
   const [group, setGroup] = useState<Group | "All">("All");
   const [type, setType] = useState<string>("All");
@@ -72,7 +86,7 @@ export function Inventory({ devices }: { devices: DeviceRow[] }) {
   const typeOptions: readonly string[] =
     group === "All" ? GROUPS.flatMap((g) => CATEGORY_GROUPS[g]) : CATEGORY_GROUPS[group];
 
-  const atLimit = devices.length >= MAX_DEVICES_PER_ACCOUNT;
+  const atLimit = devices.length >= MAX_DEVICES_PER_WORKSPACE;
   const selectedDevice = selected && selected !== "new" ? devices.find((d) => d.id === selected.id) ?? null : null;
   const filtersActive = q !== "" || group !== "All" || type !== "All" || status !== "All";
 
@@ -84,7 +98,7 @@ export function Inventory({ devices }: { devices: DeviceRow[] }) {
   }
 
   const cards: { key: "All" | Status; label: string; value: number; sub?: string }[] = [
-    { key: "All", label: "Total", value: stats.total, sub: `/${MAX_DEVICES_PER_ACCOUNT}` },
+    { key: "All", label: "Total", value: stats.total, sub: `/${MAX_DEVICES_PER_WORKSPACE}` },
     { key: "Available", label: "Available", value: stats.Available },
     {
       key: "In Use",
@@ -99,22 +113,29 @@ export function Inventory({ devices }: { devices: DeviceRow[] }) {
     <div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="eyebrow">Dashboard</div>
-          <h1 className="mt-1.5 font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">Your inventory</h1>
+          <div className="eyebrow">Inventory · {ROLE_LABELS[role]}</div>
+          <h1 className="mt-1.5 break-words font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{workspaceName}</h1>
         </div>
         <div className="flex gap-2">
-          <button type="button" className="btn-ghost" onClick={() => setImportOpen(true)}>
-            Import
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => setSelected("new")}
-            disabled={atLimit}
-            title={atLimit ? `Limit of ${MAX_DEVICES_PER_ACCOUNT} devices reached` : undefined}
-          >
-            + Add device
-          </button>
+          <Link href="/app/workspace" className="btn-ghost">
+            Team
+          </Link>
+          {canEdit && (
+            <>
+              <button type="button" className="btn-ghost" onClick={() => setImportOpen(true)}>
+                Import
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setSelected("new")}
+                disabled={atLimit}
+                title={atLimit ? `Limit of ${MAX_DEVICES_PER_WORKSPACE} devices reached` : undefined}
+              >
+                + Add device
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -244,23 +265,27 @@ export function Inventory({ devices }: { devices: DeviceRow[] }) {
           </button>
         )}
       </div>
-      {atLimit && (
+      {atLimit && canEdit && (
         <p className="mt-3 rounded-xl bg-amber/15 px-3 py-2 text-sm text-[#FFD9A8] shadow-[inset_0_0_0_1px_rgba(239,155,62,.5)]">
-          You have reached the limit of {MAX_DEVICES_PER_ACCOUNT} devices. Delete some to add more.
+          You have reached the limit of {MAX_DEVICES_PER_WORKSPACE} devices. Delete some to add more.
         </p>
       )}
 
       {/* grid */}
       {devices.length === 0 ? (
         <div className="lg lg-dark mt-6 p-10 text-center">
-          <h2 className="font-mono text-lg font-semibold">Your rack is empty</h2>
+          <h2 className="font-mono text-lg font-semibold">This rack is empty</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-[#BAC3CF]">
-            Add your first device, or import an existing .xlsx / .csv inventory.
+            {canEdit
+              ? "Add your first device, or import an existing .xlsx / .csv inventory."
+              : "No devices yet. Editors and admins of this workspace can add them."}
           </p>
-          <div className="mt-5 flex justify-center gap-2">
-            <button className="btn-primary" onClick={() => setSelected("new")}>+ Add device</button>
-            <button className="btn-ghost" onClick={() => setImportOpen(true)}>Import</button>
-          </div>
+          {canEdit && (
+            <div className="mt-5 flex justify-center gap-2">
+              <button className="btn-primary" onClick={() => setSelected("new")}>+ Add device</button>
+              <button className="btn-ghost" onClick={() => setImportOpen(true)}>Import</button>
+            </div>
+          )}
         </div>
       ) : filtered.length === 0 ? (
         <p className="mt-10 text-center text-sm text-[#AEB8C5]">No devices match your filters.</p>
@@ -281,11 +306,15 @@ export function Inventory({ devices }: { devices: DeviceRow[] }) {
         <DeviceDrawer
           key={selected === "new" ? "new" : selected.id}
           device={selectedDevice}
+          workspaceId={workspaceId}
+          canEdit={canEdit}
           overdue={selectedDevice ? isOverdue(selectedDevice, today) : false}
           onClose={() => setSelected(null)}
         />
       )}
-      {importOpen && <ImportDialog currentCount={devices.length} onClose={() => setImportOpen(false)} />}
+      {importOpen && canEdit && (
+        <ImportDialog workspaceId={workspaceId} currentCount={devices.length} onClose={() => setImportOpen(false)} />
+      )}
     </div>
   );
 }

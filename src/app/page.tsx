@@ -3,7 +3,7 @@ import { auth, signIn } from "@/auth";
 import { Logo, StatusLed } from "@/components/StatusLed";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
 import { Backdrop } from "@/components/Backdrop";
-import { MAX_DEVICES_PER_ACCOUNT, type Status } from "@/lib/categories";
+import { MAX_DEVICES_PER_WORKSPACE, type Status } from "@/lib/categories";
 
 async function signInWithGoogle() {
   "use server";
@@ -97,7 +97,7 @@ export default async function Landing() {
         <div className="lg lg-dark mx-auto inline-flex h-[34px] items-center gap-2 rounded-full px-3.5">
           <span className="blink h-2 w-2 rounded-full bg-green shadow-[0_0_10px_#4FD199]" />
           <span className="font-mono text-xs tracking-[0.06em] text-[#DDE3EA]">
-            v1.0 · free · up to {MAX_DEVICES_PER_ACCOUNT} devices
+            v1.0 · free · up to {MAX_DEVICES_PER_WORKSPACE} devices
           </span>
         </div>
         <h1 className="mx-auto mt-7 max-w-[1040px] font-mono text-[clamp(34px,6.4vw,78px)] font-semibold leading-none tracking-[-0.04em]">
@@ -149,7 +149,7 @@ export default async function Landing() {
                 <div className={GLASS_STAT}>
                   <div className="font-mono text-[10.5px] tracking-[0.12em] text-[#C3CBD6]">TOTAL</div>
                   <div className="font-mono text-3xl font-semibold">
-                    99<span className="text-xs font-normal text-[#97A3B3]"> /{MAX_DEVICES_PER_ACCOUNT}</span>
+                    99<span className="text-xs font-normal text-[#97A3B3]"> /{MAX_DEVICES_PER_WORKSPACE}</span>
                   </div>
                 </div>
                 <div className={GLASS_STAT}>
@@ -296,10 +296,10 @@ export default async function Landing() {
               </svg>
             </div>
             <div>
-              <div className="eyebrow text-[#6BE3B0]">06 · Private</div>
-              <h3 className="mt-2.5 font-mono text-xl leading-tight">Your data, only yours.</h3>
+              <div className="eyebrow text-[#6BE3B0]">06 · Shared, on your terms</div>
+              <h3 className="mt-2.5 font-mono text-xl leading-tight">Private until you invite.</h3>
               <p className="mt-2 leading-relaxed text-[#BAC3CF]">
-                Every account is fully separate. No one else can see your inventory, not even other accounts on your team.
+                Each workspace is fully separate. Invite teammates by email as Admin, Editor or Viewer, and only they can see that inventory.
               </p>
             </div>
           </div>
@@ -337,7 +337,7 @@ export default async function Landing() {
             Get your rack in order today.
           </h2>
           <p className="mx-auto mb-8 mt-4 max-w-[460px] text-[17px] leading-relaxed text-[#F7E6D0]">
-            Free for up to {MAX_DEVICES_PER_ACCOUNT} devices per account. No credit card needed.
+            Free for up to {MAX_DEVICES_PER_WORKSPACE} devices per workspace. No credit card needed.
           </p>
           <div className="flex justify-center">
             <Cta signedIn={signedIn} className="min-h-[52px] px-7 text-sm" />

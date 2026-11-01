@@ -88,10 +88,14 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 export function DeviceDrawer({
   device,
+  workspaceId,
+  canEdit,
   overdue,
   onClose,
 }: {
   device: DeviceRow | null; // null = new device
+  workspaceId: string;
+  canEdit: boolean; // false = viewer, read only
   overdue: boolean;
   onClose: () => void;
 }) {
@@ -121,7 +125,9 @@ export function DeviceDrawer({
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const res = isNew ? await createDevice(form) : await updateDevice(device.id, form);
+      const res = isNew
+        ? await createDevice(workspaceId, form)
+        : await updateDevice(workspaceId, device.id, form);
       if (!res.ok) {
         setError(res.error);
         return;
@@ -136,7 +142,7 @@ export function DeviceDrawer({
     if (!device) return;
     setError(null);
     startTransition(async () => {
-      const res = await deleteDevice(device.id);
+      const res = await deleteDevice(workspaceId, device.id);
       if (!res.ok) {
         setError(res.error);
         return;
@@ -330,6 +336,8 @@ export function DeviceDrawer({
                 </button>
               </div>
             </>
+          ) : !canEdit ? (
+            <span className="font-mono text-xs text-[#AEB8C5]">View only. Ask an admin for editor access.</span>
           ) : (
             <>
               <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>

@@ -17,7 +17,7 @@ export function StatusLed({ status, size = 8 }: { status: Status; size?: number 
   );
 }
 
-export function Logo({ className = "" }: { className?: string }) {
+export function Logo({ className = "", textClassName = "" }: { className?: string; textClassName?: string }) {
   return (
     <span className={`inline-flex items-center gap-2.5 font-mono text-[17px] font-semibold tracking-tight ${className}`}>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -27,7 +27,7 @@ export function Logo({ className = "" }: { className?: string }) {
         <circle cx="7" cy="5.5" r="1" fill="#4FD199" />
         <circle cx="7" cy="12.5" r="1" fill="#F7A23A" />
       </svg>
-      RackTrack
+      <span className={textClassName}>RackTrack</span>
     </span>
   );
 }

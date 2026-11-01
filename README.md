@@ -16,6 +16,7 @@ cp .env.example .env.local
 npx auth secret          # generates AUTH_SECRET into .env.local (or: openssl rand -base64 33)
 
 # 3. create the tables in Neon
+npm run db:migrate-workspaces   # only for a DB created before v1.1 (safe to re-run)
 npm run db:push
 
 # 4. load seed/devices.seed.json into the account of SEED_OWNER_EMAIL

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+import { getAppContext } from "@/lib/access";
 import { Logo } from "@/components/StatusLed";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
 import { Backdrop } from "@/components/Backdrop";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 
 async function doSignOut() {
   "use server";
@@ -12,7 +14,8 @@ async function doSignOut() {
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session?.user?.id) redirect("/");
+  const ctx = await getAppContext();
+  if (!session?.user || !ctx) redirect("/");
   const { name, email, image } = session.user;
 
   return (
@@ -28,11 +31,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           style={{ backgroundColor: "rgba(10,12,16,.5)" }}
           contentClassName="flex items-center justify-between gap-3 py-2 pl-5 pr-2"
         >
-          <Link href="/app" aria-label="RackTrack dashboard">
-            <Logo />
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link href="/app" aria-label="RackTrack dashboard" className="shrink-0">
+              <Logo textClassName="hidden sm:inline" />
+            </Link>
+            <WorkspaceSwitcher
+              current={ctx.workspace.workspaceId}
+              workspaces={ctx.workspaces.map(({ workspaceId, name }) => ({ id: workspaceId, name }))}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="hidden items-center gap-2 sm:flex">
               {image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

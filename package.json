@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
+    "db:migrate-workspaces": "tsx scripts/migrate-workspaces.ts",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {

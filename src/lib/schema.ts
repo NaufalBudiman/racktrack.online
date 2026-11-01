@@ -8,11 +8,13 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { Status } from "./categories";
+import type { AssignableRole, Role } from "./roles";
 
 /* ---------- Auth.js (Drizzle adapter) tables ---------- */
 
@@ -70,13 +72,63 @@ export const verificationTokens = pgTable(
 
 /* ---------- RackTrack tables ---------- */
 
+// A shared inventory. Every user gets a personal one on first visit; others join by invite.
+export const workspaces = pgTable("workspaces", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role").$type<Role>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.userId] }),
+    index("workspace_members_user_idx").on(t.userId),
+    check("workspace_members_role_check", sql`${t.role} in ('owner', 'admin', 'editor', 'viewer')`),
+  ],
+);
+
+// Invite links are bound to one email; accepting deletes the row.
+export const workspaceInvites = pgTable(
+  "workspace_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    email: text("email").notNull(), // lowercase
+    role: text("role").$type<AssignableRole>().notNull(),
+    token: text("token").notNull().unique(),
+    invitedBy: text("invited_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("workspace_invites_ws_email_idx").on(t.workspaceId, t.email),
+    check("workspace_invites_role_check", sql`${t.role} in ('admin', 'editor', 'viewer')`),
+  ],
+);
+
 export const devices = pgTable(
   "devices",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: text("user_id")
+    workspaceId: uuid("workspace_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    // Who added it. Kept if that user goes away, since the device belongs to the workspace.
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     serial: text("serial"),
     category: text("category").notNull().default("Lainnya"),
@@ -104,6 +156,7 @@ export const devices = pgTable(
   },
   (t) => [
     index("devices_user_idx").on(t.userId),
+    index("devices_workspace_idx").on(t.workspaceId),
     check(
       "devices_status_check",
       sql`${t.status} in ('Available', 'In Use', 'Hilang')`,
@@ -119,6 +172,7 @@ export const deviceHistory = pgTable(
     deviceId: uuid("device_id")
       .notNull()
       .references(() => devices.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }), // who made the change
     text: text("text").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
