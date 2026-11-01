@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CATEGORY_GROUPS, GROUPS, GROUP_COLORS, categoryLabel, groupLabel } from "@/lib/categories";
 
-type IconName = "dashboard" | "devices" | "customers" | "activity" | "team";
+type IconName = "dashboard" | "devices" | "customers" | "activity" | "team" | "scan";
 
 const NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/app", label: "Dashboard", icon: "dashboard" },
@@ -13,6 +13,9 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/app/activity", label: "Activity", icon: "activity" },
   { href: "/app/team", label: "Team", icon: "team" },
 ];
+
+// The sidebar also lists Scan; on phones it's the floating button instead of a tab.
+const SIDEBAR_NAV = [...NAV.slice(0, 2), { href: "/app/scan", label: "Scan", icon: "scan" as const }, ...NAV.slice(2)];
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -38,6 +41,7 @@ function Icon({ name }: { name: IconName }) {
       </>
     ),
     activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
+    scan: <path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3M7 12h10" />,
     team: (
       <>
         <circle cx="9" cy="8" r="3.5" />
@@ -66,7 +70,7 @@ export function SidebarNav({ counts }: { counts: Record<string, number> }) {
   return (
     <nav aria-label="Main" className="flex min-h-0 flex-1 flex-col">
       <ul className="space-y-1">
-        {NAV.map((n) => {
+        {SIDEBAR_NAV.map((n) => {
           const active = isActive(pathname, n.href) && !(n.href === "/app/devices" && (activeGroup || activeType));
           return (
             <li key={n.href}>
@@ -135,10 +139,22 @@ export function SidebarNav({ counts }: { counts: Record<string, number> }) {
   );
 }
 
-/** Phone/tablet tab bar (below lg). */
+/** Phone/tablet tab bar (below lg), plus the floating Scan button. */
 export function BottomNav() {
   const pathname = usePathname();
   return (
+    <>
+    {pathname !== "/app/scan" && (
+      <Link
+        href="/app/scan"
+        aria-label="Scan a barcode or QR code"
+        className="fixed bottom-[calc(max(.75rem,env(safe-area-inset-bottom))+4.75rem)] right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-b from-[#FFD08A] via-[#F7A23A] to-[#E3841E] text-[#1D1104] shadow-[0_8px_24px_rgba(239,155,62,.45),inset_0_1px_1px_rgba(255,255,255,.8)] transition active:scale-95 lg:hidden"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+          <path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3M7 12h10" />
+        </svg>
+      </Link>
+    )}
     <nav
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] lg:hidden"
@@ -163,5 +179,6 @@ export function BottomNav() {
         })}
       </ul>
     </nav>
+    </>
   );
 }

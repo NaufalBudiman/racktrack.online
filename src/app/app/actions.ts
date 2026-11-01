@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { authorize } from "@/lib/access";
 import { getDb } from "@/lib/db";
 import { deviceHistory, devices } from "@/lib/schema";
-import { ASSIGNMENT_LABELS, MAX_DEVICES_PER_WORKSPACE, limitMessage, statusLabel } from "@/lib/categories";
+import { ASSIGNMENT_LABELS, CATEGORIES, MAX_DEVICES_PER_WORKSPACE, limitMessage, statusLabel } from "@/lib/categories";
 import { deviceInputSchema, idSchema, moveSchema, type DeviceInput } from "@/lib/validation";
 import type { ActionResult } from "@/lib/types";
 
@@ -257,4 +257,67 @@ export async function mergeValues(workspaceId: unknown, input: unknown): Promise
 
   revalidatePath("/app", "layout");
   return { ok: true, changed: rows.length };
+}
+
+const receiveSchema = z.object({
+  name: z.string().trim().min(1, "Model name is required").max(120, "Name: max 120 characters"),
+  category: z.enum(CATEGORIES, "Pick a valid type"),
+  location: z.string().trim().max(200).nullish(),
+  serials: z
+    .array(z.string().trim().min(1).max(120))
+    .min(1, "Scan at least one serial")
+    .max(MAX_DEVICES_PER_WORKSPACE),
+});
+
+/** Receive stock: one model, many scanned serials, all added In Stock in one go (all or nothing). */
+export async function receiveDevices(
+  workspaceId: unknown,
+  input: unknown,
+): Promise<ActionResult<{ added: number }>> {
+  const auth = await authorize(workspaceId, "editor");
+  if (!auth.ok) return auth;
+  const parsed = receiveSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const { name, category, serials } = parsed.data;
+  const location = parsed.data.location || null;
+
+  const keys = serials.map((s) => s.toLowerCase());
+  if (new Set(keys).size !== keys.length) return { ok: false, error: "The list has the same serial twice." };
+
+  const db = getDb();
+  const existing = await db
+    .select({ serial: devices.serial })
+    .from(devices)
+    .where(and(eq(devices.workspaceId, auth.workspaceId), isNotNull(devices.serial)));
+  const taken = new Set(existing.map((r) => (r.serial as string).trim().toLowerCase()));
+  const dupes = serials.filter((s) => taken.has(s.toLowerCase()));
+  if (dupes.length)
+    return { ok: false, error: `Already in this workspace: ${dupes.slice(0, 5).join(", ")}${dupes.length > 5 ? "…" : ""}` };
+
+  const n = await countDevices(auth.workspaceId);
+  if (n + serials.length > MAX_DEVICES_PER_WORKSPACE)
+    return {
+      ok: false,
+      error: `That would exceed the ${MAX_DEVICES_PER_WORKSPACE}-device limit: this workspace has ${n}, and only ${Math.max(MAX_DEVICES_PER_WORKSPACE - n, 0)} slot(s) are left.`,
+    };
+
+  const rows = serials.map((serial) => ({
+    id: crypto.randomUUID(),
+    workspaceId: auth.workspaceId,
+    userId: auth.userId,
+    name,
+    serial,
+    category,
+    status: "Available" as const,
+    location,
+  }));
+  await db.batch([
+    db.insert(devices).values(rows),
+    db
+      .insert(deviceHistory)
+      .values(rows.map((r) => ({ deviceId: r.id, userId: auth.userId, text: `Received into stock${location ? ` (${location})` : ""}` }))),
+  ]);
+
+  revalidatePath("/app", "layout");
+  return { ok: true, added: rows.length };
 }

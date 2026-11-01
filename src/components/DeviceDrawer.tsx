@@ -22,7 +22,8 @@ import { StatusLed } from "./StatusLed";
 import { OverdueBadge } from "./DeviceCard";
 import { DeviceActions } from "./DeviceActions";
 
-export type Suggestions = { customers: string[]; locations: string[] };
+// models: existing model names with their type, so picking one fills the type in.
+export type Suggestions = { customers: string[]; locations: string[]; models?: { name: string; category: string }[] };
 
 type FormState = {
   name: string;
@@ -105,6 +106,7 @@ export function DeviceDrawer({
   startEditing = false,
   showDetailsLink = true,
   suggestions = { customers: [], locations: [] },
+  initial,
 }: {
   device: DeviceRow | null; // null = new device
   workspaceId: string;
@@ -115,12 +117,15 @@ export function DeviceDrawer({
   startEditing?: boolean;
   showDetailsLink?: boolean;
   suggestions?: Suggestions;
+  initial?: { serial?: string; location?: string }; // prefill for a new device (e.g. from a scan)
 }) {
   const router = useRouter();
   const isNew = device === null;
   const [editing, setEditing] = useState(isNew || startEditing);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [form, setForm] = useState<FormState>(() => toForm(device));
+  const [form, setForm] = useState<FormState>(() =>
+    device ? toForm(device) : { ...toForm(null), serial: initial?.serial ?? "", location: initial?.location ?? "" },
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -221,7 +226,25 @@ export function DeviceDrawer({
           {editing ? (
             <form id="device-form" onSubmit={save} className="grid grid-cols-2 gap-x-3 gap-y-4">
               <Field label="Name *" full>
-                <input className="input" value={form.name} onChange={set("name")} required maxLength={120} autoFocus />
+                <input
+                  className="input"
+                  list="drawer-models"
+                  value={form.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    // Picking a known model also sets its type.
+                    const known = suggestions.models?.find((m) => m.name.toLowerCase() === name.trim().toLowerCase());
+                    setForm((f) => ({ ...f, name, ...(known ? { category: known.category } : {}) }));
+                  }}
+                  required
+                  maxLength={120}
+                  autoFocus={!initial?.serial}
+                />
+                <datalist id="drawer-models">
+                  {suggestions.models?.map((m) => (
+                    <option key={m.name} value={m.name} />
+                  ))}
+                </datalist>
               </Field>
               <Field label="Serial" full>
                 <input className="input font-mono" value={form.serial} onChange={set("serial")} maxLength={120} />

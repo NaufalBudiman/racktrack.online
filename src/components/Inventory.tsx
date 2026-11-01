@@ -116,7 +116,12 @@ export function Inventory({
       for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
       return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v);
     };
-    return { customers: rank(devices.map((d) => d.customer)), locations: rank(devices.map((d) => d.location)) };
+    const category = new Map(devices.map((d) => [d.name, d.category]));
+    return {
+      customers: rank(devices.map((d) => d.customer)),
+      locations: rank(devices.map((d) => d.location)),
+      models: rank(devices.map((d) => d.name)).map((name) => ({ name, category: category.get(name) ?? "Lainnya" })),
+    };
   }, [devices]);
 
   const atLimit = devices.length >= MAX_DEVICES_PER_WORKSPACE;

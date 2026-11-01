@@ -93,7 +93,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </LiquidGlass>
       </header>
 
-      <main className="px-4 pb-28 pt-7 sm:px-6 lg:pb-10 lg:pl-[17.5rem] lg:pr-8">
+      <main className="px-4 pb-44 pt-7 sm:px-6 lg:pb-10 lg:pl-[17.5rem] lg:pr-8">
         <div className="mx-auto max-w-7xl">{children}</div>
       </main>
 
