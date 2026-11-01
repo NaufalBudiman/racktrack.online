@@ -1,7 +1,7 @@
 // Server-only reads shared by the dashboard pages. Callers pass a workspace id from getAppContext().
 import { and, asc, count, desc, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "./db";
-import { deviceHistory, devices, locations, users } from "./schema";
+import { deviceHistory, devices, locations, stockMinimums, users } from "./schema";
 import { sortPlaces, type Place } from "./places";
 import type { DeviceRow, HistoryItem } from "./types";
 
@@ -128,4 +128,12 @@ export async function resolvePlace(
   if (hit) return { ok: true, locationId: hit.id, location: hit.label };
   const [created] = await getDb().insert(locations).values({ workspaceId, name: text }).returning({ id: locations.id });
   return { ok: true, locationId: created.id, location: text };
+}
+
+export async function listMinimums(workspaceId: string): Promise<Record<string, number>> {
+  const rows = await getDb()
+    .select({ key: stockMinimums.modelKey, min: stockMinimums.minStock })
+    .from(stockMinimums)
+    .where(eq(stockMinimums.workspaceId, workspaceId));
+  return Object.fromEntries(rows.map((r) => [r.key, r.min]));
 }

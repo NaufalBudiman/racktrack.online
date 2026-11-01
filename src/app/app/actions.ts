@@ -6,7 +6,8 @@ import { z } from "zod";
 import { authorize } from "@/lib/access";
 import { getDb } from "@/lib/db";
 import { resolvePlace } from "@/lib/devices";
-import { deviceHistory, devices } from "@/lib/schema";
+import { deviceHistory, devices, stockMinimums } from "@/lib/schema";
+import { modelKey } from "@/lib/models";
 import { ASSIGNMENT_LABELS, CATEGORIES, MAX_DEVICES_PER_WORKSPACE, limitMessage, statusLabel } from "@/lib/categories";
 import { deviceInputSchema, idSchema, moveSchema, type DeviceInput } from "@/lib/validation";
 import type { ActionResult } from "@/lib/types";
@@ -351,4 +352,29 @@ export async function receiveDevices(
 
   revalidatePath("/app", "layout");
   return { ok: true, added: rows.length };
+}
+
+/** Low-stock threshold for a model; null or 0 removes it. */
+export async function setMinStock(workspaceId: unknown, name: unknown, min: unknown): Promise<ActionResult> {
+  const auth = await authorize(workspaceId, "editor");
+  if (!auth.ok) return auth;
+  const n = z.string().trim().min(1).max(120).safeParse(name);
+  if (!n.success) return { ok: false, error: "Invalid model." };
+  const m = z.coerce.number().int("Whole numbers only").min(0).max(1000, "Max 1000").nullable().safeParse(min);
+  if (!m.success) return { ok: false, error: m.error.issues[0]?.message ?? "Invalid number." };
+
+  const db = getDb();
+  const key = modelKey(n.data);
+  if (!m.data) {
+    await db
+      .delete(stockMinimums)
+      .where(and(eq(stockMinimums.workspaceId, auth.workspaceId), eq(stockMinimums.modelKey, key)));
+  } else {
+    await db
+      .insert(stockMinimums)
+      .values({ workspaceId: auth.workspaceId, modelKey: key, minStock: m.data })
+      .onConflictDoUpdate({ target: [stockMinimums.workspaceId, stockMinimums.modelKey], set: { minStock: m.data } });
+  }
+  revalidatePath("/app", "layout");
+  return { ok: true };
 }

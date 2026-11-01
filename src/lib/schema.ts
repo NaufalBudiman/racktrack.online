@@ -136,6 +136,22 @@ export const locations = pgTable(
   (t) => [index("locations_workspace_idx").on(t.workspaceId)],
 );
 
+// Low-stock threshold per model. model_key = lowercased name with spaces collapsed (see modelKey()).
+export const stockMinimums = pgTable(
+  "stock_minimums",
+  {
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    modelKey: text("model_key").notNull(),
+    minStock: integer("min_stock").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.modelKey] }),
+    check("stock_minimums_min_check", sql`${t.minStock} between 1 and 1000`),
+  ],
+);
+
 export const devices = pgTable(
   "devices",
   {

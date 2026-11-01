@@ -11,6 +11,7 @@ import {
 } from "@/lib/categories";
 import { ROLE_LABELS, canManageMembers, type Role } from "@/lib/roles";
 import { customerRows, deviceStats } from "@/lib/stats";
+import { lowStock } from "@/lib/models";
 import type { DeviceRow, HistoryItem } from "@/lib/types";
 import { OverdueBadge, isOverdue } from "./DeviceCard";
 import { StatusTiles } from "./StatTile";
@@ -86,6 +87,7 @@ function BigPanel({
 export function Dashboard({
   devices,
   history,
+  minimums,
   workspaceId,
   workspaceName,
   role,
@@ -93,6 +95,7 @@ export function Dashboard({
 }: {
   devices: DeviceRow[];
   history: HistoryItem[];
+  minimums: Record<string, number>;
   workspaceId: string;
   workspaceName: string;
   role: Role;
@@ -122,6 +125,7 @@ export function Dashboard({
     return CATEGORIES.filter((c) => counts.get(c)).map((c) => ({ category: c, n: counts.get(c) ?? 0 }));
   }, [devices]);
   const maxStock = Math.max(1, ...stock.map((c) => c.n));
+  const low = useMemo(() => lowStock(devices, minimums), [devices, minimums]);
 
   // Customers holding devices right now (missing-only customers live on the Customers page).
   const customers = useMemo(() => customerRows(devices, today).filter((c) => c.total > 0), [devices, today]);
@@ -199,6 +203,28 @@ export function Dashboard({
               unit="devices ready"
               href="/app/devices?status=Available"
             >
+              {low.length > 0 && (
+                <ul className="mb-4 space-y-1.5 rounded-xl bg-red/10 p-3 shadow-[inset_0_0_0_1px_rgba(240,102,76,.4)]">
+                  {low.map((m) => (
+                    <li key={m.key}>
+                      <Link
+                        href={`/app/devices?q=${encodeURIComponent(m.name)}`}
+                        className="flex items-center justify-between gap-3 text-sm hover:underline"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 rounded-md bg-red/25 px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wider text-[#FFB3A6]">
+                            Low
+                          </span>
+                          <span className="truncate font-mono normal-case text-ink">{m.name}</span>
+                        </span>
+                        <span className="shrink-0 font-mono text-xs text-[#FFB3A6]">
+                          {m.inStock} / min {m.min}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {stock.length === 0 ? (
                 <p className="text-sm text-[#AEB8C5]">Nothing in stock right now.</p>
               ) : (

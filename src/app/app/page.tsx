@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAppContext } from "@/lib/access";
-import { listDevices, listHistory } from "@/lib/devices";
+import { listDevices, listHistory, listMinimums } from "@/lib/devices";
 import { canEditDevices } from "@/lib/roles";
 import { Dashboard } from "@/components/Dashboard";
 
@@ -11,15 +11,17 @@ export default async function DashboardPage() {
   if (!ctx) redirect("/");
   const { workspace } = ctx;
 
-  const [devices, history] = await Promise.all([
+  const [devices, history, minimums] = await Promise.all([
     listDevices(workspace.workspaceId),
     listHistory(workspace.workspaceId, { limit: 10 }),
+    listMinimums(workspace.workspaceId),
   ]);
 
   return (
     <Dashboard
       devices={devices}
       history={history}
+      minimums={minimums}
       workspaceId={workspace.workspaceId}
       workspaceName={workspace.name}
       role={workspace.role}

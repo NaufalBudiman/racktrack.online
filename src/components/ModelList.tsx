@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { setMinStock } from "@/app/app/actions";
 import { GROUP_COLORS, STATUSES, categoryLabel, groupOf, statusLabel, type Status } from "@/lib/categories";
+import { modelKey } from "@/lib/models";
 import { isOverdue } from "@/lib/stats";
 import type { DeviceRow } from "@/lib/types";
 import { OverdueBadge } from "./DeviceCard";
 import { StatusLed } from "./StatusLed";
 
-// Same model = same name ignoring case and spacing ("H3C  WA6636" = "h3c wa6636").
-export const modelKey = (name: string) => name.toLowerCase().replace(/\s+/g, " ").trim();
+export { modelKey } from "@/lib/models";
 
 type Model = {
   key: string;
@@ -28,13 +30,33 @@ export function ModelList({
   filtered,
   today,
   onOpen,
+  minimums,
+  workspaceId,
+  canEdit,
 }: {
   devices: DeviceRow[];
   filtered: DeviceRow[];
   today: string;
   onOpen: (id: string) => void;
+  minimums: Record<string, number>;
+  workspaceId: string;
+  canEdit: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [minDraft, setMinDraft] = useState<Record<string, string>>({});
+  const [minError, setMinError] = useState<{ key: string; text: string } | null>(null);
+  const [saving, startSaving] = useTransition();
+
+  function saveMin(m: { key: string; name: string }) {
+    const raw = (minDraft[m.key] ?? "").trim();
+    setMinError(null);
+    startSaving(async () => {
+      const res = await setMinStock(workspaceId, m.name, raw === "" ? null : raw);
+      if (!res.ok) setMinError({ key: m.key, text: res.error });
+      else router.refresh();
+    });
+  }
 
   const models = useMemo(() => {
     const shown = new Map<string, DeviceRow[]>();
@@ -99,7 +121,17 @@ export function ModelList({
                   <path d="M9 6l6 6-6 6" />
                 </svg>
                 <span className="min-w-0">
-                  <span className="block truncate font-mono text-[15px] font-semibold normal-case text-ink">{m.name}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="truncate font-mono text-[15px] font-semibold normal-case text-ink">{m.name}</span>
+                    {minimums[m.key] !== undefined && m.counts.Available < minimums[m.key] && (
+                      <span
+                        className="shrink-0 rounded-md bg-red/20 px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wider text-[#FFB3A6] shadow-[inset_0_0_0_1px_rgba(240,102,76,.6)]"
+                        title={`Below the minimum of ${minimums[m.key]} in stock`}
+                      >
+                        Low
+                      </span>
+                    )}
+                  </span>
                   <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest" style={{ color }}>
                     <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
                     {categoryLabel(m.category)}
@@ -137,6 +169,36 @@ export function ModelList({
 
             {expanded && (
               <div id={panelId} className="border-t border-white/[.06] bg-black/20 px-4 py-2">
+                {canEdit ? (
+                  <form
+                    className="flex flex-wrap items-center gap-2 py-2 pl-6 text-xs text-[#AEB8C5]"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      saveMin(m);
+                    }}
+                  >
+                    <label htmlFor={`${panelId}-min`}>Alert when in stock is below</label>
+                    <input
+                      id={`${panelId}-min`}
+                      type="number"
+                      min={0}
+                      max={1000}
+                      inputMode="numeric"
+                      className="input w-20 py-1 text-xs"
+                      placeholder="off"
+                      value={minDraft[m.key] ?? (minimums[m.key]?.toString() ?? "")}
+                      onChange={(e) => setMinDraft({ ...minDraft, [m.key]: e.target.value })}
+                    />
+                    <button type="submit" className="btn-ghost px-2.5 py-1 text-[11px]" disabled={saving || minDraft[m.key] === undefined}>
+                      Save
+                    </button>
+                    {minError?.key === m.key && <span className="text-[#FFB3A6]">{minError.text}</span>}
+                  </form>
+                ) : (
+                  minimums[m.key] !== undefined && (
+                    <p className="py-2 pl-6 text-xs text-[#AEB8C5]">Low-stock alert below {minimums[m.key]}.</p>
+                  )
+                )}
                 {m.units.length < m.total && (
                   <p className="py-1.5 font-mono text-[11px] text-[#97A3B3]">
                     Showing {m.units.length} of {m.total} units (filtered)

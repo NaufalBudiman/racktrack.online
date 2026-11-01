@@ -41,6 +41,7 @@ const pick = <T extends string>(v: string | null, allowed: readonly T[]): T | "A
 export function Inventory({
   devices,
   places,
+  minimums,
   workspaceId,
   workspaceName,
   role,
@@ -48,6 +49,7 @@ export function Inventory({
 }: {
   devices: DeviceRow[];
   places: Place[];
+  minimums: Record<string, number>;
   workspaceId: string;
   workspaceName: string;
   role: Role;
@@ -298,7 +300,15 @@ export function Inventory({
       ) : filtered.length === 0 ? (
         <p className="mt-10 text-center text-sm text-[#AEB8C5]">No devices match your filters.</p>
       ) : view === "model" ? (
-        <ModelList devices={devices} filtered={filtered} today={today} onOpen={(id) => setSelected({ id })} />
+        <ModelList
+          devices={devices}
+          filtered={filtered}
+          today={today}
+          onOpen={(id) => setSelected({ id })}
+          minimums={minimums}
+          workspaceId={workspaceId}
+          canEdit={canEdit}
+        />
       ) : view === "table" ? (
         <div className="lg lg-dark mt-4 overflow-x-auto rounded-[22px]">
           <table className="w-full min-w-[760px] text-left text-sm">
