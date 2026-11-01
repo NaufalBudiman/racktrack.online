@@ -37,7 +37,7 @@ export async function createDevice(workspaceId: unknown, input: unknown): Promis
     db.insert(deviceHistory).values({ deviceId: id, userId: auth.userId, text: "Device added." }),
   ]);
 
-  revalidatePath("/app");
+  revalidatePath("/app", "layout");
   return { ok: true, id };
 }
 
@@ -81,7 +81,7 @@ export async function updateDevice(workspaceId: unknown, id: unknown, input: unk
     await update;
   }
 
-  revalidatePath("/app");
+  revalidatePath("/app", "layout");
   return { ok: true };
 }
 
@@ -97,7 +97,7 @@ export async function deleteDevice(workspaceId: unknown, id: unknown): Promise<A
     .delete(devices)
     .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId)));
 
-  revalidatePath("/app");
+  revalidatePath("/app", "layout");
   return { ok: true };
 }
 
@@ -154,7 +154,7 @@ export async function importDevices(
       ),
   ]);
 
-  revalidatePath("/app");
+  revalidatePath("/app", "layout");
   return {
     ok: true,
     imported: valid.length,

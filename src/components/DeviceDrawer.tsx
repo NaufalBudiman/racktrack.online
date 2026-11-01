@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -76,7 +77,7 @@ function Field({
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+export function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === null || value === undefined || value === "") return null;
   return (
     <div className="grid grid-cols-[7.5rem_1fr] gap-3 border-b border-white/[.08] py-2.5 text-sm">
@@ -92,16 +93,22 @@ export function DeviceDrawer({
   canEdit,
   overdue,
   onClose,
+  onDeleted,
+  startEditing = false,
+  showDetailsLink = true,
 }: {
   device: DeviceRow | null; // null = new device
   workspaceId: string;
   canEdit: boolean; // false = viewer, read only
   overdue: boolean;
   onClose: () => void;
+  onDeleted?: () => void; // defaults to onClose
+  startEditing?: boolean;
+  showDetailsLink?: boolean;
 }) {
   const router = useRouter();
   const isNew = device === null;
-  const [editing, setEditing] = useState(isNew);
+  const [editing, setEditing] = useState(isNew || startEditing);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [form, setForm] = useState<FormState>(() => toForm(device));
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +140,7 @@ export function DeviceDrawer({
         return;
       }
       router.refresh();
-      if (isNew) onClose();
+      if (isNew || startEditing) onClose();
       else setEditing(false);
     });
   }
@@ -147,8 +154,11 @@ export function DeviceDrawer({
         setError(res.error);
         return;
       }
-      router.refresh();
-      onClose();
+      if (onDeleted) onDeleted();
+      else {
+        router.refresh();
+        onClose();
+      }
     });
   }
 
@@ -179,6 +189,11 @@ export function DeviceDrawer({
             </h2>
             {device && !editing && (
               <div className="truncate font-mono text-xs text-[#97A3B3]">{device.serial ?? "no serial"}</div>
+            )}
+            {device && !editing && showDetailsLink && (
+              <Link href={`/app/devices/${device.id}`} className="mt-1 inline-block font-mono text-xs text-[#FFC27A] hover:underline">
+                Open full page and history →
+              </Link>
             )}
           </div>
           <button type="button" onClick={onClose} className="btn-ghost h-10 w-10 px-0" aria-label="Close">
@@ -310,7 +325,7 @@ export function DeviceDrawer({
                 className="btn-ghost"
                 disabled={pending}
                 onClick={() => {
-                  if (isNew) onClose();
+                  if (isNew || startEditing) onClose();
                   else {
                     setForm(toForm(device));
                     setError(null);

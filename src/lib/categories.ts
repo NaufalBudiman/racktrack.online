@@ -62,3 +62,6 @@ export const categoryLabel = (c: string) => CATEGORY_LABELS[c] ?? c;
 export function limitMessage(current: number): string {
   return `Device limit reached: a workspace can hold up to ${MAX_DEVICES_PER_WORKSPACE} devices (you have ${current}). Delete some devices to add more.`;
 }
+
+// History text embeds stored status values ("Status: Available → Hilang"); show them in English.
+export const historyLabel = (text: string) => text.replace(/\bHilang\b/g, statusLabel("Hilang"));

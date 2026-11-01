@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -107,10 +106,7 @@ export function WorkspaceSettings({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <Link href="/app" className="font-mono text-xs text-[#FFC27A] hover:underline">
-          ← Back to inventory
-        </Link>
-        <div className="eyebrow mt-4">Workspace · {ROLE_LABELS[role]}</div>
+        <div className="eyebrow">Team · {ROLE_LABELS[role]}</div>
         <h1 className="mt-1.5 break-words font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{name}</h1>
       </div>
 
@@ -321,7 +317,7 @@ export function WorkspaceSettings({
             e.preventDefault();
             run(() => createWorkspace(newName), () => {
               setNewName("");
-              router.push("/app");
+              router.push("/app/devices");
             });
           }}
         >

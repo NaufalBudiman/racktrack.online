@@ -28,3 +28,12 @@ export type DeviceRow = {
 export type ActionResult<T = object> =
   | ({ ok: true } & T)
   | { ok: false; error: string };
+
+export type HistoryItem = {
+  id: string;
+  text: string;
+  createdAt: string;
+  deviceId: string;
+  deviceName: string;
+  by: string | null; // null for seed/import rows from before workspaces
+};

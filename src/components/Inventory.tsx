@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  CATEGORIES,
   CATEGORY_GROUPS,
   GROUPS,
   MAX_DEVICES_PER_WORKSPACE,
@@ -16,11 +17,11 @@ import {
 } from "@/lib/categories";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import type { DeviceRow } from "@/lib/types";
-import { DeviceCard, isOverdue } from "./DeviceCard";
+import { DeviceCard, OverdueBadge, isOverdue } from "./DeviceCard";
 import { DeviceDrawer } from "./DeviceDrawer";
 import { ImportDialog } from "./ImportDialog";
+import { StatTile } from "./StatTile";
 import { StatusLed } from "./StatusLed";
-import { LiquidGlass } from "./ui/liquid-glass";
 
 function localToday(): string {
   const d = new Date();
@@ -30,12 +31,8 @@ function localToday(): string {
 
 type Selected = { id: string } | "new" | null;
 
-// Text colors for the big numbers, lighter than the LED colors so they stay readable on glass.
-const NUMBER_COLORS: Record<Status, string> = {
-  Available: "#6BE3B0",
-  "In Use": "#FFE1B8",
-  Hilang: "#FF9A86",
-};
+const pick = <T extends string>(v: string | null, allowed: readonly T[]): T | "All" =>
+  v && (allowed as readonly string[]).includes(v) ? (v as T) : "All";
 
 export function Inventory({
   devices,
@@ -50,15 +47,43 @@ export function Inventory({
   role: Role;
   canEdit: boolean;
 }) {
-  const [q, setQ] = useState("");
-  const [group, setGroup] = useState<Group | "All">("All");
-  const [type, setType] = useState<string>("All");
-  const [status, setStatus] = useState<Status | "All">("All");
+  // Filters live in the URL so sidebar links, the dashboard and shared links can set them.
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const group = pick<Group>(params.get("group"), GROUPS);
+  const type = pick(params.get("type"), CATEGORIES);
+  const status = pick<Status>(params.get("status"), STATUSES);
+  const view = params.get("view") === "table" ? "table" : "grid";
+
+  const [q, setQ] = useState(params.get("q") ?? "");
   const [selected, setSelected] = useState<Selected>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [today, setToday] = useState(""); // set after mount to avoid hydration mismatch
 
+  function setParams(updates: Record<string, string | null>) {
+    const next = new URLSearchParams(params.toString());
+    for (const [k, v] of Object.entries(updates)) {
+      if (v === null || v === "" || v === "All") next.delete(k);
+      else next.set(k, v);
+    }
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
   useEffect(() => setToday(localToday()), []);
+  useEffect(() => setQ(params.get("q") ?? ""), [params]);
+
+  // ?new=1 / ?import=1 (from the dashboard) open the drawer or dialog once.
+  useEffect(() => {
+    const wantsNew = params.get("new") === "1";
+    const wantsImport = params.get("import") === "1";
+    if (!wantsNew && !wantsImport) return;
+    if (canEdit && wantsNew) setSelected("new");
+    if (canEdit && wantsImport) setImportOpen(true);
+    setParams({ new: null, import: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   const stats = useMemo(() => {
     const s = { total: devices.length, Available: 0, "In Use": 0, Hilang: 0, overdue: 0 };
@@ -92,107 +117,49 @@ export function Inventory({
 
   function resetFilters() {
     setQ("");
-    setGroup("All");
-    setType("All");
-    setStatus("All");
+    setParams({ q: null, group: null, type: null, status: null });
   }
 
-  const cards: { key: "All" | Status; label: string; value: number; sub?: string }[] = [
-    { key: "All", label: "Total", value: stats.total, sub: `/${MAX_DEVICES_PER_WORKSPACE}` },
-    { key: "Available", label: "Available", value: stats.Available },
-    {
-      key: "In Use",
-      label: "In Use",
-      value: stats["In Use"],
-      sub: stats.overdue ? `· ${stats.overdue} overdue` : undefined,
-    },
-    { key: "Hilang", label: statusLabel("Hilang"), value: stats.Hilang },
-  ];
+  const toggleStatus = (key: "All" | Status) => setParams({ status: key === "All" || status === key ? null : key });
 
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="eyebrow">Inventory · {ROLE_LABELS[role]}</div>
+          <div className="eyebrow">Devices · {ROLE_LABELS[role]}</div>
           <h1 className="mt-1.5 break-words font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{workspaceName}</h1>
         </div>
-        <div className="flex gap-2">
-          <Link href="/app/workspace" className="btn-ghost">
-            Team
-          </Link>
-          {canEdit && (
-            <>
-              <button type="button" className="btn-ghost" onClick={() => setImportOpen(true)}>
-                Import
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setSelected("new")}
-                disabled={atLimit}
-                title={atLimit ? `Limit of ${MAX_DEVICES_PER_WORKSPACE} devices reached` : undefined}
-              >
-                + Add device
-              </button>
-            </>
-          )}
-        </div>
+        {canEdit && (
+          <div className="flex gap-2">
+            <button type="button" className="btn-ghost" onClick={() => setImportOpen(true)}>
+              Import
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setSelected("new")}
+              disabled={atLimit}
+              title={atLimit ? `Limit of ${MAX_DEVICES_PER_WORKSPACE} devices reached` : undefined}
+            >
+              + Add device
+            </button>
+          </div>
+        )}
       </div>
 
       {/* stat cards (also status filters) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {cards.map((c) => {
-          const active = status === c.key;
-          const amber = c.key === "In Use";
-          return (
-            <LiquidGlass
-              key={c.key}
-              radius={20}
-              scale={22}
-              bevelDepth={10}
-              aberration={2}
-              tint={amber ? 0.02 : 0.07}
-              className={`glass-rim ${active ? "outline outline-2 outline-offset-0 outline-amber" : ""}`}
-              style={
-                amber
-                  ? {
-                      backgroundColor: "rgba(30,16,4,.55)",
-                      backgroundImage: "linear-gradient(160deg, rgba(255,200,120,.32), rgba(245,150,50,.1) 50%, rgba(120,50,0,.15))",
-                    }
-                  : { backgroundColor: "rgba(10,12,16,.55)" }
-              }
-            >
-              <button
-                type="button"
-                onClick={() => setStatus(c.key === "All" || active ? "All" : c.key)}
-                aria-pressed={active}
-                className="block w-full rounded-[20px] px-4 py-3.5 text-left transition hover:bg-white/[.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber"
-              >
-                <div
-                  className={`flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.12em] ${
-                    amber ? "text-[#FFE6C6]" : "text-[#C3CBD6]"
-                  }`}
-                >
-                  {c.key !== "All" && <StatusLed status={c.key} />}
-                  {c.label}
-                </div>
-                <div className="mt-0.5 flex items-baseline gap-1.5">
-                  <span
-                    className="font-mono text-3xl font-semibold"
-                    style={{ color: c.key === "All" ? undefined : NUMBER_COLORS[c.key] }}
-                  >
-                    {c.value}
-                  </span>
-                  {c.sub && (
-                    <span className={`font-mono text-xs ${c.sub.includes("overdue") ? "text-[#FFB3A6]" : "text-[#97A3B3]"}`}>
-                      {c.sub}
-                    </span>
-                  )}
-                </div>
-              </button>
-            </LiquidGlass>
-          );
-        })}
+        <StatTile statKey="All" label="Total" value={stats.total} sub={`/${MAX_DEVICES_PER_WORKSPACE}`} active={status === "All"} onClick={() => toggleStatus("All")} />
+        <StatTile statKey="Available" label="Available" value={stats.Available} active={status === "Available"} onClick={() => toggleStatus("Available")} />
+        <StatTile
+          statKey="In Use"
+          label="In Use"
+          value={stats["In Use"]}
+          sub={stats.overdue ? `· ${stats.overdue} overdue` : undefined}
+          active={status === "In Use"}
+          onClick={() => toggleStatus("In Use")}
+        />
+        <StatTile statKey="Hilang" label={statusLabel("Hilang")} value={stats.Hilang} active={status === "Hilang"} onClick={() => toggleStatus("Hilang")} />
       </div>
 
       {/* toolbar */}
@@ -214,7 +181,10 @@ export function Inventory({
           <input
             type="search"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setParams({ q: e.target.value });
+            }}
             placeholder="Search name, serial, customer, location…"
             aria-label="Search devices"
             className="input pl-10"
@@ -225,17 +195,14 @@ export function Inventory({
             aria-label="Group"
             className="input lg:w-40"
             value={group}
-            onChange={(e) => {
-              setGroup(e.target.value as Group | "All");
-              setType("All");
-            }}
+            onChange={(e) => setParams({ group: e.target.value, type: null })}
           >
             <option value="All">All groups</option>
             {GROUPS.map((g) => (
               <option key={g} value={g}>{groupLabel(g)}</option>
             ))}
           </select>
-          <select aria-label="Type" className="input lg:w-48" value={type} onChange={(e) => setType(e.target.value)}>
+          <select aria-label="Type" className="input lg:w-48" value={type} onChange={(e) => setParams({ type: e.target.value })}>
             <option value="All">All types</option>
             {typeOptions.map((t) => (
               <option key={t} value={t}>{categoryLabel(t)}</option>
@@ -245,7 +212,7 @@ export function Inventory({
             aria-label="Status"
             className="input lg:w-36"
             value={status}
-            onChange={(e) => setStatus(e.target.value as Status | "All")}
+            onChange={(e) => setParams({ status: e.target.value })}
           >
             <option value="All">All statuses</option>
             {STATUSES.map((s) => (
@@ -256,14 +223,27 @@ export function Inventory({
       </div>
 
       <div className="mt-3 flex items-center justify-between px-1 font-mono text-xs text-[#AEB8C5]">
-        <span>
+        <span className="flex items-center gap-3">
           Showing {filtered.length} of {devices.length}
+          {filtersActive && (
+            <button type="button" onClick={resetFilters} className="text-[#FFC27A] hover:underline">
+              Clear filters
+            </button>
+          )}
         </span>
-        {filtersActive && (
-          <button type="button" onClick={resetFilters} className="text-[#FFC27A] hover:underline">
-            Clear filters
-          </button>
-        )}
+        <span className="flex gap-1" role="group" aria-label="View">
+          {(["grid", "table"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              onClick={() => setParams({ view: v === "grid" ? null : v })}
+              className={`chip ${view === v ? "chip-on" : ""}`}
+            >
+              {v === "grid" ? "Grid" : "Table"}
+            </button>
+          ))}
+        </span>
       </div>
       {atLimit && canEdit && (
         <p className="mt-3 rounded-xl bg-amber/15 px-3 py-2 text-sm text-[#FFD9A8] shadow-[inset_0_0_0_1px_rgba(239,155,62,.5)]">
@@ -289,6 +269,59 @@ export function Inventory({
         </div>
       ) : filtered.length === 0 ? (
         <p className="mt-10 text-center text-sm text-[#AEB8C5]">No devices match your filters.</p>
+      ) : view === "table" ? (
+        <div className="lg lg-dark mt-4 overflow-x-auto rounded-[22px]">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="font-mono text-[10.5px] uppercase tracking-wider text-[#AEB8C5]">
+              <tr className="border-b border-white/10">
+                {["Name", "Type", "Status", "Location", "Customer", "Due"].map((h) => (
+                  <th key={h} scope="col" className="px-4 py-3 font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[.06]">
+              {filtered.map((d) => {
+                const overdue = isOverdue(d, today);
+                return (
+                  <tr key={d.id} className="transition hover:bg-white/[.04]">
+                    <td className="max-w-[16rem] px-4 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelected({ id: d.id })}
+                        className="block max-w-full truncate text-left font-mono font-semibold normal-case text-ink hover:text-[#FFC27A] focus:outline-none focus-visible:underline"
+                      >
+                        {d.name}
+                      </button>
+                      <div className="truncate font-mono text-xs text-[#97A3B3]">{d.serial ?? "no serial"}</div>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-[#BAC3CF]">{categoryLabel(d.category)}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5">
+                      <span className="flex items-center gap-2 text-[#C3CBD6]">
+                        <StatusLed status={d.status} />
+                        {statusLabel(d.status)}
+                      </span>
+                    </td>
+                    <td className="max-w-[12rem] truncate px-4 py-2.5 text-[#BAC3CF]">
+                      {d.location ?? "—"}
+                      {d.rackPosition ? ` · ${d.rackPosition}` : ""}
+                    </td>
+                    <td className="max-w-[12rem] truncate px-4 py-2.5 text-[#BAC3CF]">{d.customer ?? "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-[#BAC3CF]">
+                      {d.status === "In Use" && d.returnDate ? (
+                        <span className="flex items-center gap-2">
+                          {d.returnDate}
+                          {overdue && <OverdueBadge />}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((d) => (

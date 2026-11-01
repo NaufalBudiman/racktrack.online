@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { switchWorkspace } from "@/app/app/workspace/actions";
 
 const NEW = "__new";
@@ -14,18 +14,21 @@ export function WorkspaceSwitcher({
   workspaces: { id: string; name: string }[];
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, startTransition] = useTransition();
 
   function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const id = e.target.value;
     if (id === NEW) {
-      router.push("/app/workspace#new");
+      router.push("/app/team#new");
       return;
     }
     startTransition(async () => {
       const res = await switchWorkspace(id);
       if (!res.ok) alert(res.error);
-      router.refresh();
+      // A device page belongs to the old workspace; go back to the list instead.
+      if (res.ok && pathname.startsWith("/app/devices/")) router.push("/app/devices");
+      else router.refresh();
     });
   }
 

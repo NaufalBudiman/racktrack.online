@@ -173,7 +173,7 @@ export async function createInvite(
       set: { role: r.data, token, invitedBy: a.userId, expiresAt, createdAt: new Date() },
     });
 
-  revalidatePath("/app/workspace");
+  revalidatePath("/app/team");
   return { ok: true, token };
 }
 
@@ -186,7 +186,7 @@ export async function revokeInvite(workspaceId: unknown, inviteId: unknown): Pro
   await getDb()
     .delete(workspaceInvites)
     .where(and(eq(workspaceInvites.id, id.data), eq(workspaceInvites.workspaceId, a.workspaceId)));
-  revalidatePath("/app/workspace");
+  revalidatePath("/app/team");
   return { ok: true };
 }
 
