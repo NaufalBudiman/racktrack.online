@@ -38,7 +38,12 @@ export const deviceInputSchema = z
   serial: optText(120),
   category: z.enum(CATEGORIES, "Pick a valid type"),
   status: z.enum(STATUSES, "Pick a valid status"),
-  location: optText(200),
+  location: optText(200), // free text, only used when locationId is absent (imports)
+  // undefined = not sent (fall back to text), "" / null = no location, uuid = a place in this workspace
+  locationId: z
+    .union([z.string().uuid(), z.literal("")])
+    .nullish()
+    .transform((v) => (v === undefined ? undefined : v || null)),
   rackPosition: optText(80),
   firmwareVersion: optText(80),
   customer: optText(200),
@@ -93,7 +98,7 @@ export const moveSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("checkin"),
     result: z.enum(["Available", "Faulty"], "Pick the condition"),
-    location: optText(200),
+    locationId: z.union([z.string().uuid(), z.literal("")]).nullish().transform((v) => v || null),
     note,
   }),
   z.object({

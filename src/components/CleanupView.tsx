@@ -58,7 +58,6 @@ export function nudgeCount(devices: DeviceRow[], dismissed: string[]): number {
     i.strayCustomer.length +
     i.duplicateSerials.length +
     open("customer", i.similarCustomers) +
-    open("location", i.similarLocations) +
     open("name", i.similarModels)
   );
 }
@@ -76,12 +75,10 @@ export function CleanupView({ devices, workspaceId, canEdit }: { devices: Device
 
   const issues = useMemo(() => findIssues(devices), [devices]);
   const customerGroups = issues.similarCustomers.filter((g) => !dismissed.includes(groupKey("customer", g)));
-  const locationGroups = issues.similarLocations.filter((g) => !dismissed.includes(groupKey("location", g)));
   const modelGroups = issues.similarModels.filter((g) => !dismissed.includes(groupKey("name", g)));
   const total = issueCount({
     ...issues,
     similarCustomers: customerGroups,
-    similarLocations: locationGroups,
     similarModels: modelGroups,
   });
 
@@ -109,7 +106,7 @@ export function CleanupView({ devices, workspaceId, canEdit }: { devices: Device
     }
   }
 
-  function mergeGroups(field: "customer" | "location" | "name", groups: NameGroup[]) {
+  function mergeGroups(field: "customer" | "name", groups: NameGroup[]) {
     return (
       <ul className="space-y-3">
         {groups.map((g) => {
@@ -208,14 +205,6 @@ export function CleanupView({ devices, workspaceId, canEdit }: { devices: Device
         count={modelGroups.length}
       >
         {mergeGroups("name", modelGroups)}
-      </Section>
-
-      <Section
-        title="Similar locations"
-        hint="These look like the same place spelled differently."
-        count={locationGroups.length}
-      >
-        {mergeGroups("location", locationGroups)}
       </Section>
 
       <Section

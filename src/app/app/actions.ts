@@ -5,6 +5,7 @@ import { and, count, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { authorize } from "@/lib/access";
 import { getDb } from "@/lib/db";
+import { resolvePlace } from "@/lib/devices";
 import { deviceHistory, devices } from "@/lib/schema";
 import { ASSIGNMENT_LABELS, CATEGORIES, MAX_DEVICES_PER_WORKSPACE, limitMessage, statusLabel } from "@/lib/categories";
 import { deviceInputSchema, idSchema, moveSchema, type DeviceInput } from "@/lib/validation";
@@ -21,6 +22,12 @@ async function countDevices(workspaceId: string): Promise<number> {
   return row?.n ?? 0;
 }
 
+// Server-computed location columns; the client's free-text label is never stored as-is.
+const placeFields = (p: { locationId: string | null; location: string | null }) => ({
+  locationId: p.locationId,
+  location: p.location,
+});
+
 export async function createDevice(workspaceId: unknown, input: unknown): Promise<ActionResult<{ id: string }>> {
   const auth = await authorize(workspaceId, "editor");
   if (!auth.ok) return auth;
@@ -31,10 +38,15 @@ export async function createDevice(workspaceId: unknown, input: unknown): Promis
   const n = await countDevices(auth.workspaceId);
   if (n >= MAX_DEVICES_PER_WORKSPACE) return { ok: false, error: limitMessage(n) };
 
+  const place = await resolvePlace(auth.workspaceId, parsed.data);
+  if (!place.ok) return place;
+
   const db = getDb();
   const id = crypto.randomUUID();
   await db.batch([
-    db.insert(devices).values({ ...parsed.data, id, workspaceId: auth.workspaceId, userId: auth.userId }),
+    db
+      .insert(devices)
+      .values({ ...parsed.data, ...placeFields(place), id, workspaceId: auth.workspaceId, userId: auth.userId }),
     db.insert(deviceHistory).values({ deviceId: id, userId: auth.userId, text: "Device added." }),
   ]);
 
@@ -60,7 +72,9 @@ export async function updateDevice(workspaceId: unknown, id: unknown, input: unk
     .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId)));
   if (!existing) return { ok: false, error: "Device not found." };
 
-  const next: DeviceInput = parsed.data;
+  const place = await resolvePlace(auth.workspaceId, parsed.data);
+  if (!place.ok) return place;
+  const next = { ...parsed.data, ...placeFields(place) };
   const changes: string[] = [];
   if (existing.status !== next.status) changes.push(`Status: ${existing.status} → ${next.status}`);
   if ((existing.location ?? null) !== next.location)
@@ -138,9 +152,20 @@ export async function importDevices(
     };
   }
 
+  // Each distinct location text resolves once (matching a place or creating a site), in sheet order.
+  const placeByText = new Map<string, { locationId: string | null; location: string | null }>();
+  for (const v of valid) {
+    const key = v.location?.trim().toLowerCase() ?? "";
+    if (placeByText.has(key)) continue;
+    const place = await resolvePlace(auth.workspaceId, { location: v.location });
+    if (!place.ok) return place;
+    placeByText.set(key, placeFields(place));
+  }
+
   const db = getDb();
   const withIds = valid.map((v) => ({
     ...v,
+    ...placeByText.get(v.location?.trim().toLowerCase() ?? ""),
     id: crypto.randomUUID(),
     workspaceId: auth.workspaceId,
     userId: auth.userId,
@@ -193,10 +218,10 @@ export async function moveDevice(workspaceId: unknown, id: unknown, move: unknow
       break;
     }
     case "checkin": {
-      patch = { status: move_.result, location: move_.location ?? existing.location };
+      patch = { status: move_.result, ...(move_.locationId ? { locationId: move_.locationId } : {}) };
       const verb = existing.status === "Hilang" ? "Found" : existing.status === "Faulty" ? "Repaired" : "Returned";
       const from = existing.status === "In Use" && existing.customer ? ` from ${existing.customer}` : "";
-      text = `${verb}${from} → ${statusLabel(move_.result)}${move_.location ? ` (${move_.location})` : ""}`;
+      text = `${verb}${from} → ${statusLabel(move_.result)}`;
       break;
     }
     case "status": {
@@ -206,17 +231,20 @@ export async function moveDevice(workspaceId: unknown, id: unknown, move: unknow
       break;
     }
   }
-  if (move_.note) text += ` — ${move_.note}`;
 
   // Re-run the normal device rules on the merged result (e.g. leaving a customer clears customer fields).
   const { id: _i, workspaceId: _w, userId: _u, createdAt: _c, updatedAt: _up, ...current } = existing;
   const parsed = deviceInputSchema.safeParse({ ...current, ...patch });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const place = await resolvePlace(auth.workspaceId, parsed.data);
+  if (!place.ok) return place;
+  if (move_.type === "checkin" && place.location) text += ` (${place.location})`;
+  if (move_.note) text += ` — ${move_.note}`;
 
   await db.batch([
     db
       .update(devices)
-      .set({ ...parsed.data, updatedAt: new Date() })
+      .set({ ...parsed.data, ...placeFields(place), updatedAt: new Date() })
       .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId))),
     db.insert(deviceHistory).values({ deviceId: idParsed.data, userId: auth.userId, text }),
   ]);
@@ -226,12 +254,12 @@ export async function moveDevice(workspaceId: unknown, id: unknown, move: unknow
 }
 
 const mergeSchema = z.object({
-  field: z.enum(["customer", "location", "name"]),
+  field: z.enum(["customer", "name"]),
   from: z.array(z.string().min(1).max(200)).min(1).max(20),
   to: z.string().trim().min(1, "Pick the name to keep").max(200),
 });
 
-/** Data cleanup: rename every device's customer/location/model name in `from` to `to`, with a history row each. */
+/** Data cleanup: rename every device's customer or model name in `from` to `to`, with a history row each. */
 export async function mergeValues(workspaceId: unknown, input: unknown): Promise<ActionResult<{ changed: number }>> {
   const auth = await authorize(workspaceId, "editor");
   if (!auth.ok) return auth;
@@ -242,12 +270,12 @@ export async function mergeValues(workspaceId: unknown, input: unknown): Promise
   if (from.length === 0) return { ok: true, changed: 0 };
 
   const db = getDb();
-  const column = { customer: devices.customer, location: devices.location, name: devices.name }[field];
+  const column = { customer: devices.customer, name: devices.name }[field];
   const scope = and(eq(devices.workspaceId, auth.workspaceId), inArray(column, from));
   const rows = await db.select({ id: devices.id, value: column }).from(devices).where(scope);
   if (rows.length === 0) return { ok: true, changed: 0 };
 
-  const label = { customer: "Customer", location: "Location", name: "Name" }[field];
+  const label = { customer: "Customer", name: "Name" }[field];
   await db.batch([
     db.update(devices).set({ [field]: to, updatedAt: new Date() }).where(scope),
     db.insert(deviceHistory).values(
@@ -262,7 +290,7 @@ export async function mergeValues(workspaceId: unknown, input: unknown): Promise
 const receiveSchema = z.object({
   name: z.string().trim().min(1, "Model name is required").max(120, "Name: max 120 characters"),
   category: z.enum(CATEGORIES, "Pick a valid type"),
-  location: z.string().trim().max(200).nullish(),
+  locationId: z.union([z.string().uuid(), z.literal("")]).nullish().transform((v) => v || null),
   serials: z
     .array(z.string().trim().min(1).max(120))
     .min(1, "Scan at least one serial")
@@ -279,7 +307,9 @@ export async function receiveDevices(
   const parsed = receiveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const { name, category, serials } = parsed.data;
-  const location = parsed.data.location || null;
+  const place = await resolvePlace(auth.workspaceId, { locationId: parsed.data.locationId });
+  if (!place.ok) return place;
+  const { locationId, location } = place;
 
   const keys = serials.map((s) => s.toLowerCase());
   if (new Set(keys).size !== keys.length) return { ok: false, error: "The list has the same serial twice." };
@@ -309,6 +339,7 @@ export async function receiveDevices(
     serial,
     category,
     status: "Available" as const,
+    locationId,
     location,
   }));
   await db.batch([

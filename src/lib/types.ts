@@ -6,7 +6,8 @@ export type DeviceRow = {
   name: string;
   serial: string | null;
   category: string;
-  location: string | null;
+  locationId: string | null;
+  location: string | null; // label of locationId
   rackPosition: string | null;
   firmwareVersion: string | null;
   status: Status;

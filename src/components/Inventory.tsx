@@ -17,12 +17,14 @@ import {
 } from "@/lib/categories";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { deviceStats } from "@/lib/stats";
+import { placeAndChildren, type Place } from "@/lib/places";
 import type { DeviceRow } from "@/lib/types";
 import { DeviceCard, OverdueBadge, isOverdue } from "./DeviceCard";
 import { DeviceDrawer } from "./DeviceDrawer";
 import { ModelList, modelKey } from "./ModelList";
 import { ImportDialog } from "./ImportDialog";
 import { StatusTiles } from "./StatTile";
+import { PlaceSelect } from "./PlaceSelect";
 import { StatusLed } from "./StatusLed";
 
 function localToday(): string {
@@ -38,12 +40,14 @@ const pick = <T extends string>(v: string | null, allowed: readonly T[]): T | "A
 
 export function Inventory({
   devices,
+  places,
   workspaceId,
   workspaceName,
   role,
   canEdit,
 }: {
   devices: DeviceRow[];
+  places: Place[];
   workspaceId: string;
   workspaceName: string;
   role: Role;
@@ -57,6 +61,9 @@ export function Inventory({
   const type = pick(params.get("type"), CATEGORIES);
   const status = pick<Status>(params.get("status"), STATUSES);
   const customer = params.get("customer"); // exact match, set from the dashboard
+  const placeParam = params.get("location");
+  const place = places.some((p) => p.id === placeParam) ? (placeParam as string) : "";
+  const inPlace = useMemo(() => (place ? placeAndChildren(places, place) : null), [places, place]);
   const viewParam = params.get("view");
   const view = viewParam === "table" || viewParam === "grid" ? viewParam : "model"; // by model is the default
 
@@ -98,13 +105,14 @@ export function Inventory({
       if (type !== "All" && d.category !== type) return false;
       if (status !== "All" && d.status !== status) return false;
       if (customer && d.customer !== customer) return false;
+      if (inPlace && !(d.locationId && inPlace.has(d.locationId))) return false;
       if (needle) {
         const hay = [d.name, d.serial, d.customer, d.location];
         if (!hay.some((v) => v?.toLowerCase().includes(needle))) return false;
       }
       return true;
     });
-  }, [devices, q, group, type, status, customer]);
+  }, [devices, q, group, type, status, customer, inPlace]);
 
   const typeOptions: readonly string[] =
     group === "All" ? GROUPS.flatMap((g) => CATEGORY_GROUPS[g]) : CATEGORY_GROUPS[group];
@@ -119,18 +127,18 @@ export function Inventory({
     const category = new Map(devices.map((d) => [d.name, d.category]));
     return {
       customers: rank(devices.map((d) => d.customer)),
-      locations: rank(devices.map((d) => d.location)),
+      places,
       models: rank(devices.map((d) => d.name)).map((name) => ({ name, category: category.get(name) ?? "Lainnya" })),
     };
-  }, [devices]);
+  }, [devices, places]);
 
   const atLimit = devices.length >= MAX_DEVICES_PER_WORKSPACE;
   const selectedDevice = selected && selected !== "new" ? devices.find((d) => d.id === selected.id) ?? null : null;
-  const filtersActive = q !== "" || group !== "All" || type !== "All" || status !== "All" || !!customer;
+  const filtersActive = q !== "" || group !== "All" || type !== "All" || status !== "All" || !!customer || !!place;
 
   function resetFilters() {
     setQ("");
-    setParams({ q: null, group: null, type: null, status: null, customer: null });
+    setParams({ q: null, group: null, type: null, status: null, customer: null, location: null });
   }
 
   const toggleStatus = (key: "All" | Status) => setParams({ status: key === "All" || status === key ? null : key });
@@ -191,7 +199,7 @@ export function Inventory({
             className="input pl-10"
           />
         </div>
-        <div className="grid grid-cols-3 gap-2 lg:flex">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex">
           <select
             aria-label="Group"
             className="input lg:w-40"
@@ -220,6 +228,13 @@ export function Inventory({
               <option key={s} value={s}>{statusLabel(s)}</option>
             ))}
           </select>
+          <PlaceSelect
+            places={places}
+            value={place}
+            onChange={(id) => setParams({ location: id || null })}
+            noneLabel="All locations"
+            className="input lg:w-44"
+          />
         </div>
       </div>
 

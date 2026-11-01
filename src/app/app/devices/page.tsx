@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAppContext } from "@/lib/access";
-import { listDevices } from "@/lib/devices";
+import { listDevices, listPlaces } from "@/lib/devices";
 import { canEditDevices } from "@/lib/roles";
 import { Inventory } from "@/components/Inventory";
 
@@ -12,11 +12,12 @@ export default async function DevicesPage() {
   const { workspace } = ctx;
 
   // Always scoped to a workspace the signed-in user belongs to.
-  const devices = await listDevices(workspace.workspaceId);
+  const [devices, places] = await Promise.all([listDevices(workspace.workspaceId), listPlaces(workspace.workspaceId)]);
 
   return (
     <Inventory
       devices={devices}
+      places={places}
       workspaceId={workspace.workspaceId}
       workspaceName={workspace.name}
       role={workspace.role}

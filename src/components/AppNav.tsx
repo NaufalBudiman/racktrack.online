@@ -4,18 +4,21 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CATEGORY_GROUPS, GROUPS, GROUP_COLORS, categoryLabel, groupLabel } from "@/lib/categories";
 
-type IconName = "dashboard" | "devices" | "customers" | "activity" | "team" | "scan";
+type IconName = "dashboard" | "devices" | "customers" | "locations" | "activity" | "team" | "scan";
 
 const NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/app", label: "Dashboard", icon: "dashboard" },
   { href: "/app/devices", label: "Devices", icon: "devices" },
   { href: "/app/customers", label: "Customers", icon: "customers" },
+  { href: "/app/locations", label: "Locations", icon: "locations" },
   { href: "/app/activity", label: "Activity", icon: "activity" },
   { href: "/app/team", label: "Team", icon: "team" },
 ];
 
 // The sidebar also lists Scan; on phones it's the floating button instead of a tab.
 const SIDEBAR_NAV = [...NAV.slice(0, 2), { href: "/app/scan", label: "Scan", icon: "scan" as const }, ...NAV.slice(2)];
+// Five tabs fit a phone; Activity stays reachable from the dashboard's "See all".
+const TAB_NAV = NAV.filter((n) => n.href !== "/app/activity");
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -38,6 +41,12 @@ function Icon({ name }: { name: IconName }) {
       <>
         <path d="M4 21V6a1 1 0 011-1h8a1 1 0 011 1v15M14 10h5a1 1 0 011 1v10M2 21h20" />
         <path d="M8 9h2M8 13h2M8 17h2M17 14h.01M17 17h.01" />
+      </>
+    ),
+    locations: (
+      <>
+        <path d="M12 21s-7-6.2-7-11.5a7 7 0 0114 0C19 14.8 12 21 12 21z" />
+        <circle cx="12" cy="9.5" r="2.5" />
       </>
     ),
     activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
@@ -160,7 +169,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] lg:hidden"
     >
       <ul className="lg lg-dark mx-auto grid max-w-md grid-cols-5 rounded-[22px] p-1.5">
-        {NAV.map((n) => {
+        {TAB_NAV.map((n) => {
           const active = isActive(pathname, n.href);
           return (
             <li key={n.href}>

@@ -13,11 +13,13 @@ import {
 } from "@/lib/categories";
 import { parseScan, serialKey } from "@/lib/scan";
 import { isOverdue } from "@/lib/stats";
+import type { Place } from "@/lib/places";
 import type { DeviceRow } from "@/lib/types";
 import { receiveDevices } from "@/app/app/actions";
 import { DeviceDrawer, type Suggestions } from "./DeviceDrawer";
 import { Scanner } from "./Scanner";
 import { StatusLed } from "./StatusLed";
+import { PlaceSelect } from "./PlaceSelect";
 
 function localToday(): string {
   const d = new Date();
@@ -43,10 +45,12 @@ function rank(values: (string | null)[]): string[] {
 
 export function ScanView({
   devices,
+  places,
   workspaceId,
   canEdit,
 }: {
   devices: DeviceRow[];
+  places: Place[];
   workspaceId: string;
   canEdit: boolean;
 }) {
@@ -63,7 +67,7 @@ export function ScanView({
   // receive mode
   const [model, setModel] = useState("");
   const [category, setCategory] = useState<Category>("Wireless");
-  const [location, setLocation] = useState("");
+  const [locationId, setLocationId] = useState(() => places.find((p) => !p.parentId)?.id ?? "");
   const [batch, setBatch] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
 
@@ -77,14 +81,10 @@ export function ScanView({
     const cat = new Map(devices.map((d) => [d.name, d.category]));
     return {
       customers: rank(devices.map((d) => d.customer)),
-      locations: rank(devices.map((d) => d.location)),
+      places,
       models: rank(devices.map((d) => d.name)).map((name) => ({ name, category: cat.get(name) ?? "Lainnya" })),
     };
-  }, [devices]);
-
-  useEffect(() => {
-    if (!location && suggestions.locations[0]) setLocation(suggestions.locations[0]);
-  }, [suggestions.locations, location]);
+  }, [devices, places]);
 
   const slotsLeft = MAX_DEVICES_PER_WORKSPACE - devices.length - batch.length;
   const openDevice = open && "id" in open ? devices.find((d) => d.id === open.id) ?? null : null;
@@ -147,7 +147,7 @@ export function ScanView({
   function saveBatch() {
     setFlash(null);
     startTransition(async () => {
-      const res = await receiveDevices(workspaceId, { name: model, category, location, serials: batch });
+      const res = await receiveDevices(workspaceId, { name: model, category, locationId, serials: batch });
       if (!res.ok) {
         setFlash({ tone: "bad", text: res.error });
         return;
@@ -233,18 +233,7 @@ export function ScanView({
           </label>
           <label className="block">
             <span className="label">Stored at</span>
-            <input
-              className="input"
-              list={`${ids}-locations`}
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              maxLength={200}
-            />
-            <datalist id={`${ids}-locations`}>
-              {suggestions.locations.map((l) => (
-                <option key={l} value={l} />
-              ))}
-            </datalist>
+            <PlaceSelect places={places} value={locationId} onChange={setLocationId} />
           </label>
           {batch.length > 0 && (
             <p className="col-span-2 text-xs text-[#97A3B3]">Model and type are locked while the list has serials.</p>
@@ -346,7 +335,7 @@ export function ScanView({
           canEdit={canEdit}
           overdue={openDevice ? isOverdue(openDevice, today) : false}
           suggestions={suggestions}
-          initial={"newSerial" in open ? { serial: open.newSerial, location: suggestions.locations[0] } : undefined}
+          initial={"newSerial" in open ? { serial: open.newSerial, locationId } : undefined}
           onClose={() => setOpen(null)}
         />
       )}

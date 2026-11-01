@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   check,
   date,
   doublePrecision,
@@ -120,6 +121,21 @@ export const workspaceInvites = pgTable(
   ],
 );
 
+// Where stock is kept: a site (parent_id null) or a spot inside a site (rack, shelf, cabinet). Two levels max.
+export const locations = pgTable(
+  "locations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    parentId: uuid("parent_id").references((): AnyPgColumn => locations.id),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("locations_workspace_idx").on(t.workspaceId)],
+);
+
 export const devices = pgTable(
   "devices",
   {
@@ -132,6 +148,9 @@ export const devices = pgTable(
     name: text("name").notNull(),
     serial: text("serial"),
     category: text("category").notNull().default("Lainnya"),
+    // Where it's stored (or returns to while out). `location` is the display label of location_id
+    // ("Site" or "Site › Spot"), always written by the server.
+    locationId: uuid("location_id").references(() => locations.id, { onDelete: "set null" }),
     location: text("location"),
     rackPosition: text("rack_position"),
     firmwareVersion: text("firmware_version"),
@@ -158,6 +177,7 @@ export const devices = pgTable(
   (t) => [
     index("devices_user_idx").on(t.userId),
     index("devices_workspace_idx").on(t.workspaceId),
+    index("devices_location_idx").on(t.locationId),
     check(
       "devices_status_check",
       sql`${t.status} in ('Available', 'In Use', 'Internal', 'Faulty', 'Hilang', 'Retired')`,

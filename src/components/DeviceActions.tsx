@@ -3,7 +3,9 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ASSIGNMENTS, ASSIGNMENT_LABELS, statusLabel, type Assignment, type Status } from "@/lib/categories";
+import type { Place } from "@/lib/places";
 import type { DeviceRow } from "@/lib/types";
+import { PlaceSelect } from "./PlaceSelect";
 import type { MoveInput } from "@/lib/validation";
 import { moveDevice } from "@/app/app/actions";
 
@@ -56,12 +58,12 @@ export function DeviceActions({
   device,
   workspaceId,
   customers,
-  locations,
+  places,
 }: {
   device: DeviceRow;
   workspaceId: string;
   customers: string[];
-  locations: string[];
+  places: Place[];
 }) {
   const router = useRouter();
   const ids = useId();
@@ -76,7 +78,7 @@ export function DeviceActions({
   const [outDate, setOutDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [result, setResult] = useState<"Available" | "Faulty">("Available");
-  const [location, setLocation] = useState("");
+  const [locationId, setLocationId] = useState("");
   const [note, setNote] = useState("");
 
   function open(m: Mode) {
@@ -88,7 +90,8 @@ export function DeviceActions({
     setOutDate(localToday());
     setReturnDate("");
     setResult("Available");
-    setLocation(device.location ?? locations[0] ?? "");
+    // back where it came from, else the first site
+    setLocationId(device.locationId ?? places.find((p) => !p.parentId)?.id ?? "");
     setNote("");
   }
 
@@ -99,7 +102,7 @@ export function DeviceActions({
       mode.kind === "checkout"
         ? { type: "checkout", customer, contact, assignment: assignment as Assignment, outDate, returnDate, note }
         : mode.kind === "checkin"
-          ? { type: "checkin", result, location, note }
+          ? { type: "checkin", result, locationId, note }
           : { type: "status", status: mode.status, note };
     setError(null);
     startTransition(async () => {
@@ -232,19 +235,7 @@ export function DeviceActions({
             </fieldset>
             <label className={`${field} col-span-2`}>
               <span className={lab}>Stored at</span>
-              <input
-                className="input"
-                list={`${ids}-locations`}
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                maxLength={200}
-                placeholder="e.g. CKI Office"
-              />
-              <datalist id={`${ids}-locations`}>
-                {locations.map((l) => (
-                  <option key={l} value={l} />
-                ))}
-              </datalist>
+              <PlaceSelect places={places} value={locationId} onChange={setLocationId} />
             </label>
           </>
         )}

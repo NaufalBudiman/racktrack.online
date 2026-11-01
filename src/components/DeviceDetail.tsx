@@ -107,7 +107,7 @@ export function DeviceDetail({
 
       {canEdit && (
         <section className="lg lg-dark rounded-[22px] p-4">
-          <DeviceActions device={d} workspaceId={workspaceId} customers={suggestions.customers} locations={suggestions.locations} />
+          <DeviceActions device={d} workspaceId={workspaceId} customers={suggestions.customers} places={suggestions.places} />
         </section>
       )}
 

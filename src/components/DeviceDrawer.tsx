@@ -21,9 +21,11 @@ import { createDevice, deleteDevice, updateDevice } from "@/app/app/actions";
 import { StatusLed } from "./StatusLed";
 import { OverdueBadge } from "./DeviceCard";
 import { DeviceActions } from "./DeviceActions";
+import { PlaceSelect } from "./PlaceSelect";
+import type { Place } from "@/lib/places";
 
 // models: existing model names with their type, so picking one fills the type in.
-export type Suggestions = { customers: string[]; locations: string[]; models?: { name: string; category: string }[] };
+export type Suggestions = { customers: string[]; places: Place[]; models?: { name: string; category: string }[] };
 
 type FormState = {
   name: string;
@@ -31,7 +33,7 @@ type FormState = {
   category: string;
   status: string;
   assignment: string;
-  location: string;
+  locationId: string; // "" = none
   rackPosition: string;
   firmwareVersion: string;
   customer: string;
@@ -53,7 +55,7 @@ function toForm(d: DeviceRow | null): FormState {
     category: d?.category ?? "Switch",
     status: d?.status ?? "Available",
     assignment: d?.assignment ?? "",
-    location: d?.location ?? "",
+    locationId: d?.locationId ?? "",
     rackPosition: d?.rackPosition ?? "",
     firmwareVersion: d?.firmwareVersion ?? "",
     customer: d?.customer ?? "",
@@ -105,7 +107,7 @@ export function DeviceDrawer({
   onDeleted,
   startEditing = false,
   showDetailsLink = true,
-  suggestions = { customers: [], locations: [] },
+  suggestions = { customers: [], places: [] },
   initial,
 }: {
   device: DeviceRow | null; // null = new device
@@ -117,14 +119,14 @@ export function DeviceDrawer({
   startEditing?: boolean;
   showDetailsLink?: boolean;
   suggestions?: Suggestions;
-  initial?: { serial?: string; location?: string }; // prefill for a new device (e.g. from a scan)
+  initial?: { serial?: string; locationId?: string }; // prefill for a new device (e.g. from a scan)
 }) {
   const router = useRouter();
   const isNew = device === null;
   const [editing, setEditing] = useState(isNew || startEditing);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [form, setForm] = useState<FormState>(() =>
-    device ? toForm(device) : { ...toForm(null), serial: initial?.serial ?? "", location: initial?.location ?? "" },
+    device ? toForm(device) : { ...toForm(null), serial: initial?.serial ?? "", locationId: initial?.locationId ?? "" },
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -269,12 +271,14 @@ export function DeviceDrawer({
                 <span className="mt-1 block text-xs text-[#97A3B3]">{STATUS_HINTS[form.status as keyof typeof STATUS_HINTS]}</span>
               </Field>
               <Field label="Location">
-                <input className="input" list="drawer-locations" value={form.location} onChange={set("location")} maxLength={200} />
-                <datalist id="drawer-locations">
-                  {suggestions.locations.map((l) => (
-                    <option key={l} value={l} />
-                  ))}
-                </datalist>
+                <PlaceSelect
+                  places={suggestions.places}
+                  value={form.locationId}
+                  onChange={(locationId) => setForm((f) => ({ ...f, locationId }))}
+                />
+                {suggestions.places.length === 0 && (
+                  <span className="mt-1 block text-xs text-[#97A3B3]">Add sites and racks on the Locations page.</span>
+                )}
               </Field>
               <Field label="Rack position / port">
                 <input className="input" value={form.rackPosition} onChange={set("rackPosition")} maxLength={80} placeholder="e.g. R2-U14" />
@@ -363,7 +367,7 @@ export function DeviceDrawer({
                       device={device}
                       workspaceId={workspaceId}
                       customers={suggestions.customers}
-                      locations={suggestions.locations}
+                      places={suggestions.places}
                     />
                   </div>
                 )}

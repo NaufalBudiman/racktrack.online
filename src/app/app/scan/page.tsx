@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAppContext } from "@/lib/access";
-import { listDevices } from "@/lib/devices";
+import { listDevices, listPlaces } from "@/lib/devices";
 import { canEditDevices } from "@/lib/roles";
 import { ScanView } from "@/components/ScanView";
 
@@ -12,11 +12,12 @@ export default async function ScanPage() {
   if (!ctx) redirect("/");
   const { workspace } = ctx;
 
-  const devices = await listDevices(workspace.workspaceId);
+  const [devices, places] = await Promise.all([listDevices(workspace.workspaceId), listPlaces(workspace.workspaceId)]);
   return (
     <ScanView
       key={workspace.workspaceId}
       devices={devices}
+      places={places}
       workspaceId={workspace.workspaceId}
       canEdit={canEditDevices(workspace.role)}
     />

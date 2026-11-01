@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, isNull } from "drizzle-orm";
 import * as schema from "../src/lib/schema";
 import { MAX_DEVICES_PER_WORKSPACE } from "../src/lib/categories";
 import { deviceInputSchema } from "../src/lib/validation";
@@ -36,7 +36,7 @@ async function main() {
   if (!Array.isArray(raw)) throw new Error("seed/devices.seed.json must be a JSON array");
 
   const db = drizzle(neon(url), { schema });
-  const { users, devices, deviceHistory, workspaces, workspaceMembers } = schema;
+  const { users, devices, deviceHistory, workspaces, workspaceMembers, locations } = schema;
 
   // 1. find or create the owner
   let [owner] = await db.select().from(users).where(eq(users.email, email));
@@ -90,7 +90,24 @@ async function main() {
     );
   }
 
-  // 5. insert devices + history in one transaction
+  // 5. every distinct location text becomes a site (or reuses one), like the app's import
+  const sites = await db
+    .select({ id: locations.id, name: locations.name })
+    .from(locations)
+    .where(and(eq(locations.workspaceId, workspaceId), isNull(locations.parentId)));
+  const siteId = new Map(sites.map((s) => [s.name.toLowerCase(), { id: s.id, name: s.name }]));
+  for (const r of rows) {
+    const name = r.input.location?.trim();
+    if (!name || siteId.has(name.toLowerCase())) continue;
+    const [created] = await db.insert(locations).values({ workspaceId, name }).returning({ id: locations.id });
+    siteId.set(name.toLowerCase(), { id: created.id, name });
+  }
+  const placeOf = (text: string | null) => {
+    const s = text?.trim() ? siteId.get(text.trim().toLowerCase()) : undefined;
+    return { locationId: s?.id ?? null, location: s?.name ?? null };
+  };
+
+  // 6. insert devices + history in one transaction
   const withIds = rows.map((r) => ({ ...r, id: crypto.randomUUID() }));
   const historyRows = withIds.flatMap((r) => {
     const entries = r.history.filter((h) => h.text);
@@ -104,7 +121,9 @@ async function main() {
   });
 
   await db.batch([
-    db.insert(devices).values(withIds.map((r) => ({ ...r.input, id: r.id, workspaceId, userId: owner.id }))),
+    db.insert(devices).values(
+      withIds.map((r) => ({ ...r.input, ...placeOf(r.input.location), id: r.id, workspaceId, userId: owner.id })),
+    ),
     db.insert(deviceHistory).values(historyRows),
   ]);
 

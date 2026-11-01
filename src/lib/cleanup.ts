@@ -8,7 +8,6 @@ export type CleanupIssues = {
   noOutDate: DeviceRow[]; // at a customer with no out date
   duplicateSerials: { serial: string; devices: DeviceRow[] }[];
   similarCustomers: NameGroup[];
-  similarLocations: NameGroup[];
   similarModels: NameGroup[];
 };
 
@@ -78,7 +77,6 @@ export function findIssues(devices: DeviceRow[]): CleanupIssues {
       .filter((g) => g.length > 1)
       .map((g) => ({ serial: g[0].serial as string, devices: g })),
     similarCustomers: similarNames(devices.map((d) => d.customer)),
-    similarLocations: similarNames(devices.map((d) => d.location)),
     similarModels: similarNames(
       devices.map((d) => d.name),
       { normalize: normalizeModel, typos: false },
@@ -92,7 +90,6 @@ export function issueCount(i: CleanupIssues): number {
     i.noOutDate.length +
     i.duplicateSerials.length +
     i.similarCustomers.length +
-    i.similarLocations.length +
     i.similarModels.length
   );
 }
