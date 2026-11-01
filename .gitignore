@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# next
+.next/
+out/
+next-env.d.ts
+
+# env — never commit real values
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# private seed data (contains real customer names / serials)
+seed/*.json
+!seed/*.example.json
+
+# misc
+.DS_Store
+*.log
+*.tsbuildinfo
+.vercel/
