@@ -4,11 +4,12 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CATEGORY_GROUPS, GROUPS, GROUP_COLORS, categoryLabel, groupLabel } from "@/lib/categories";
 
-type IconName = "dashboard" | "devices" | "activity" | "team";
+type IconName = "dashboard" | "devices" | "customers" | "activity" | "team";
 
 const NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/app", label: "Dashboard", icon: "dashboard" },
   { href: "/app/devices", label: "Devices", icon: "devices" },
+  { href: "/app/customers", label: "Customers", icon: "customers" },
   { href: "/app/activity", label: "Activity", icon: "activity" },
   { href: "/app/team", label: "Team", icon: "team" },
 ];
@@ -28,6 +29,12 @@ function Icon({ name }: { name: IconName }) {
         <rect x="3" y="4" width="18" height="5" rx="1.5" />
         <rect x="3" y="11" width="18" height="5" rx="1.5" />
         <path d="M7 6.5h.01M7 13.5h.01M3 20h18" />
+      </>
+    ),
+    customers: (
+      <>
+        <path d="M4 21V6a1 1 0 011-1h8a1 1 0 011 1v15M14 10h5a1 1 0 011 1v10M2 21h20" />
+        <path d="M8 9h2M8 13h2M8 17h2M17 14h.01M17 17h.01" />
       </>
     ),
     activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
@@ -136,7 +143,7 @@ export function BottomNav() {
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] lg:hidden"
     >
-      <ul className="lg lg-dark mx-auto grid max-w-md grid-cols-4 rounded-[22px] p-1.5">
+      <ul className="lg lg-dark mx-auto grid max-w-md grid-cols-5 rounded-[22px] p-1.5">
         {NAV.map((n) => {
           const active = isActive(pathname, n.href);
           return (
@@ -144,7 +151,7 @@ export function BottomNav() {
               <Link
                 href={n.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 rounded-2xl py-1.5 font-mono text-[10px] uppercase tracking-wider transition ${
+                className={`flex flex-col items-center gap-0.5 rounded-2xl py-1.5 font-mono text-[9px] uppercase tracking-wide transition ${
                   active ? "bg-amber/15 text-[#FFD9A8]" : "text-[#AEB8C5] hover:text-ink"
                 }`}
               >

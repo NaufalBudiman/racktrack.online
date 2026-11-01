@@ -10,7 +10,7 @@ import {
   statusLabel,
 } from "@/lib/categories";
 import { ROLE_LABELS, canManageMembers, type Role } from "@/lib/roles";
-import { deviceStats } from "@/lib/stats";
+import { customerRows, deviceStats } from "@/lib/stats";
 import type { DeviceRow, HistoryItem } from "@/lib/types";
 import { OverdueBadge, isOverdue } from "./DeviceCard";
 import { StatusTiles } from "./StatTile";
@@ -37,8 +37,6 @@ function Panel({ title, action, children }: { title: string; action?: React.Reac
 
 const ATTENTION_LIMIT = 8;
 const CUSTOMER_LIMIT = 8;
-
-type CustomerRow = { name: string; total: number; loans: number; overdue: number; nextDue: string | null };
 
 const TONES = {
   green: { eyebrow: "text-[#6BE3B0]", count: "text-[#6BE3B0]", rim: "shadow-[inset_0_2px_0_rgba(79,209,153,.55)]" },
@@ -120,22 +118,8 @@ export function Dashboard({
   }, [devices]);
   const maxStock = Math.max(1, ...stock.map((c) => c.n));
 
-  // One row per customer: overdue first, then the ones holding the most devices.
-  const customers = useMemo(() => {
-    const map = new Map<string, CustomerRow>();
-    for (const d of devices) {
-      if (d.status !== "In Use" || !d.customer) continue;
-      const r = map.get(d.customer) ?? { name: d.customer, total: 0, loans: 0, overdue: 0, nextDue: null };
-      r.total++;
-      if (d.assignment === "loan") {
-        r.loans++;
-        if (d.returnDate && (!r.nextDue || d.returnDate < r.nextDue)) r.nextDue = d.returnDate;
-      }
-      if (isOverdue(d, today)) r.overdue++;
-      map.set(d.customer, r);
-    }
-    return [...map.values()].sort((a, b) => b.overdue - a.overdue || b.total - a.total || a.name.localeCompare(b.name));
-  }, [devices, today]);
+  // Customers holding devices right now (missing-only customers live on the Customers page).
+  const customers = useMemo(() => customerRows(devices, today).filter((c) => c.total > 0), [devices, today]);
   const [allCustomers, setAllCustomers] = useState(false);
   const shownCustomers = allCustomers ? customers : customers.slice(0, CUSTOMER_LIMIT);
   const notReady = [
@@ -231,7 +215,7 @@ export function Dashboard({
               title="At customers"
               count={stats["In Use"]}
               unit={`devices at ${customers.length} customer${customers.length === 1 ? "" : "s"}`}
-              href="/app/devices?status=In+Use"
+              href="/app/customers"
             >
               {customers.length === 0 ? (
                 <p className="text-sm text-[#AEB8C5]">No devices at customers.</p>

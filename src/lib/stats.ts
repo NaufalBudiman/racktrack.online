@@ -17,3 +17,34 @@ export function deviceStats(devices: DeviceRow[], today: string): DeviceStats {
   }
   return { ...s, total: devices.length, overdue };
 }
+
+export type CustomerRow = {
+  name: string;
+  total: number; // devices at this customer now
+  loans: number;
+  overdue: number;
+  missing: number; // went missing while there
+  since: string | null; // earliest out date
+  nextDue: string | null; // earliest loan return date
+};
+
+/** One row per customer from current device data: overdue first, then most devices. */
+export function customerRows(devices: DeviceRow[], today: string): CustomerRow[] {
+  const map = new Map<string, CustomerRow>();
+  for (const d of devices) {
+    if (!d.customer || (d.status !== "In Use" && d.status !== "Hilang")) continue;
+    const r = map.get(d.customer) ?? { name: d.customer, total: 0, loans: 0, overdue: 0, missing: 0, since: null, nextDue: null };
+    if (d.status === "Hilang") r.missing++;
+    else {
+      r.total++;
+      if (d.outDate && (!r.since || d.outDate < r.since)) r.since = d.outDate;
+      if (d.assignment === "loan") {
+        r.loans++;
+        if (d.returnDate && (!r.nextDue || d.returnDate < r.nextDue)) r.nextDue = d.returnDate;
+      }
+      if (isOverdue(d, today)) r.overdue++;
+    }
+    map.set(d.customer, r);
+  }
+  return [...map.values()].sort((a, b) => b.overdue - a.overdue || b.total - a.total || a.name.localeCompare(b.name));
+}
