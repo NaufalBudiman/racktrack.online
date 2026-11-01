@@ -3,7 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { getAppContext } from "@/lib/access";
 import { getDb } from "@/lib/db";
 import { users, workspaceInvites, workspaceMembers } from "@/lib/schema";
-import { canManageMembers } from "@/lib/roles";
+import { canManageMembers, effectiveDigest } from "@/lib/roles";
 import { WorkspaceSettings } from "@/components/WorkspaceSettings";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +23,7 @@ export default async function WorkspacePage() {
         email: users.email,
         image: users.image,
         role: workspaceMembers.role,
+        digest: workspaceMembers.digest,
       })
       .from(workspaceMembers)
       .innerJoin(users, eq(users.id, workspaceMembers.userId))
@@ -51,7 +52,11 @@ export default async function WorkspacePage() {
       name={workspace.name}
       role={workspace.role}
       me={ctx.userId}
-      members={members}
+      members={members.map(({ digest: _d, ...m }) => m)}
+      myDigest={effectiveDigest(
+        workspace.role,
+        members.find((m) => m.userId === ctx.userId)?.digest ?? null,
+      )}
       invites={invites?.map((i) => ({ ...i, expiresAt: i.expiresAt.toISOString() })) ?? null}
     />
   );

@@ -15,7 +15,7 @@ import {
 import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { Assignment, Status } from "./categories";
-import type { AssignableRole, Role } from "./roles";
+import type { AssignableRole, Digest, Role } from "./roles";
 
 /* ---------- Auth.js (Drizzle adapter) tables ---------- */
 
@@ -91,10 +91,13 @@ export const workspaceMembers = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     role: text("role").$type<Role>().notNull(),
+    // Email digest preference; null = role default (owner/admin daily, others off). See effectiveDigest().
+    digest: text("digest").$type<Digest>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.workspaceId, t.userId] }),
+    check("workspace_members_digest_check", sql`${t.digest} in ('daily', 'weekly', 'off')`),
     index("workspace_members_user_idx").on(t.userId),
     check("workspace_members_role_check", sql`${t.role} in ('owner', 'admin', 'editor', 'viewer')`),
   ],

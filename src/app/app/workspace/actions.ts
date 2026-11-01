@@ -12,6 +12,7 @@ import { users, workspaceInvites, workspaceMembers, workspaces } from "@/lib/sch
 import { idSchema } from "@/lib/validation";
 import {
   ASSIGNABLE_ROLES,
+  DIGESTS,
   INVITE_TTL_DAYS,
   MAX_MEMBERS_PER_WORKSPACE,
   MAX_OWNED_WORKSPACES,
@@ -219,4 +220,19 @@ export async function acceptInvite(token: string): Promise<void> {
   await setActiveWorkspace(invite.workspaceId);
   revalidatePath("/app", "layout");
   redirect("/app");
+}
+
+/** Your own email digest setting for this workspace. */
+export async function setDigest(workspaceId: unknown, digest: unknown): Promise<ActionResult> {
+  const a = await authorize(workspaceId, "viewer");
+  if (!a.ok) return a;
+  const d = z.enum(DIGESTS, "Pick Daily, Weekly or Off").safeParse(digest);
+  if (!d.success) return { ok: false, error: firstError(d.error) };
+
+  await getDb()
+    .update(workspaceMembers)
+    .set({ digest: d.data })
+    .where(and(eq(workspaceMembers.workspaceId, a.workspaceId), eq(workspaceMembers.userId, a.userId)));
+  revalidatePath("/app/team");
+  return { ok: true };
 }

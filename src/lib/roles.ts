@@ -30,6 +30,14 @@ export const ROLE_HINTS: Record<AssignableRole, string> = {
   viewer: "Read only",
 };
 
+export const DIGESTS = ["daily", "weekly", "off"] as const;
+export type Digest = (typeof DIGESTS)[number];
+export const DIGEST_LABELS: Record<Digest, string> = { daily: "Daily", weekly: "Weekly (Mondays)", off: "Off" };
+
+/** Owners and admins get the daily email unless they change it; everyone else opts in. */
+export const effectiveDigest = (role: Role, digest: Digest | null): Digest =>
+  digest ?? (atLeast(role, "admin") ? "daily" : "off");
+
 export const MAX_OWNED_WORKSPACES = 5;
 export const MAX_MEMBERS_PER_WORKSPACE = 50; // members + pending invites
 export const INVITE_TTL_DAYS = 7;

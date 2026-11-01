@@ -42,6 +42,10 @@ export default function PrivacyPage() {
         <li>To sign you in and show you the workspaces you belong to.</li>
         <li>To store and display your inventory, and the change history your team relies on.</li>
         <li>To let workspace owners and admins invite and manage members.</li>
+        <li>
+          To email you a short summary (overdue loans, low stock, recent changes). Owners and admins get it daily by
+          default; anyone can change or turn it off on the Team page.
+        </li>
         <li>To keep the service secure and working.</li>
       </ul>
       <p>
@@ -59,8 +63,8 @@ export default function PrivacyPage() {
           picture are shown to the people you share a workspace with. Nobody else can see a workspace.
         </li>
         <li>
-          <strong>Service providers</strong> that run RackTrack for us: Vercel (hosting), Neon (database) and Google
-          (sign-in). They process data only to provide their service.
+          <strong>Service providers</strong> that run RackTrack for us: Vercel (hosting), Neon (database), Google
+          (sign-in) and Resend (email delivery). They process data only to provide their service.
         </li>
         <li>Authorities, only if the law requires it.</li>
       </ul>

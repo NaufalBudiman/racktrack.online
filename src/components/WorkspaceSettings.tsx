@@ -4,6 +4,8 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ASSIGNABLE_ROLES,
+  DIGESTS,
+  DIGEST_LABELS,
   INVITE_TTL_DAYS,
   ROLE_HINTS,
   ROLE_LABELS,
@@ -11,6 +13,7 @@ import {
   canManageMembers,
   outranks,
   type AssignableRole,
+  type Digest,
   type Role,
 } from "@/lib/roles";
 import {
@@ -21,6 +24,7 @@ import {
   removeMember,
   renameWorkspace,
   revokeInvite,
+  setDigest,
 } from "@/app/app/workspace/actions";
 import type { ActionResult } from "@/lib/types";
 
@@ -51,6 +55,7 @@ export function WorkspaceSettings({
   me,
   members,
   invites,
+  myDigest,
 }: {
   workspaceId: string;
   name: string;
@@ -58,6 +63,7 @@ export function WorkspaceSettings({
   me: string;
   members: Member[];
   invites: Invite[] | null; // null = not allowed to see invites
+  myDigest: Digest;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -158,6 +164,27 @@ export function WorkspaceSettings({
             )}
           </div>
         )}
+      </Section>
+
+      <Section title="Your email summary">
+        <p className="mb-3 text-sm text-[#BAC3CF]">
+          A short email at 07:00 WIB with overdue loans, loans due in the next 3 days, low stock and recent changes. Sent
+          only when there&apos;s something to report.
+        </p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Email summary frequency">
+          {DIGESTS.map((d) => (
+            <button
+              key={d}
+              type="button"
+              aria-pressed={myDigest === d}
+              disabled={pending}
+              onClick={() => run(() => setDigest(workspaceId, d), () => setNotice(`Email summary: ${DIGEST_LABELS[d]}.`))}
+              className={`chip ${myDigest === d ? "chip-on" : ""}`}
+            >
+              {DIGEST_LABELS[d]}
+            </button>
+          ))}
+        </div>
       </Section>
 
       <Section title={`Members (${members.length})`}>
