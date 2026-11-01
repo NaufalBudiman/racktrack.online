@@ -226,12 +226,12 @@ export async function moveDevice(workspaceId: unknown, id: unknown, move: unknow
 }
 
 const mergeSchema = z.object({
-  field: z.enum(["customer", "location"]),
+  field: z.enum(["customer", "location", "name"]),
   from: z.array(z.string().min(1).max(200)).min(1).max(20),
   to: z.string().trim().min(1, "Pick the name to keep").max(200),
 });
 
-/** Data cleanup: rename every device's customer/location in `from` to `to`, with a history row each. */
+/** Data cleanup: rename every device's customer/location/model name in `from` to `to`, with a history row each. */
 export async function mergeValues(workspaceId: unknown, input: unknown): Promise<ActionResult<{ changed: number }>> {
   const auth = await authorize(workspaceId, "editor");
   if (!auth.ok) return auth;
@@ -242,12 +242,12 @@ export async function mergeValues(workspaceId: unknown, input: unknown): Promise
   if (from.length === 0) return { ok: true, changed: 0 };
 
   const db = getDb();
-  const column = field === "customer" ? devices.customer : devices.location;
+  const column = { customer: devices.customer, location: devices.location, name: devices.name }[field];
   const scope = and(eq(devices.workspaceId, auth.workspaceId), inArray(column, from));
   const rows = await db.select({ id: devices.id, value: column }).from(devices).where(scope);
   if (rows.length === 0) return { ok: true, changed: 0 };
 
-  const label = field === "customer" ? "Customer" : "Location";
+  const label = { customer: "Customer", location: "Location", name: "Name" }[field];
   await db.batch([
     db.update(devices).set({ [field]: to, updatedAt: new Date() }).where(scope),
     db.insert(deviceHistory).values(

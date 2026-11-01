@@ -9,6 +9,7 @@ export type CleanupIssues = {
   duplicateSerials: { serial: string; devices: DeviceRow[] }[];
   similarCustomers: NameGroup[];
   similarLocations: NameGroup[];
+  similarModels: NameGroup[];
 };
 
 const CUSTOMER_FIELDS = ["customer", "contact", "outDate", "returnDate", "assignment"] as const;
@@ -16,6 +17,10 @@ const CUSTOMER_FIELDS = ["customer", "contact", "outDate", "returnDate", "assign
 // "PT. ABC Indonesia" and "abc indonesia" compare equal.
 const COMPANY_WORDS = /\b(pt|cv|tbk|ud|persero)\b/g;
 export const normalizeName = (s: string) => s.toLowerCase().replace(COMPANY_WORDS, "").replace(/[^a-z0-9]/g, "");
+
+// "H3C WA6636" and "wa-6636" compare equal. No typo matching for models: WA7320i and WA7330i are different products.
+const VENDORS = /\b(h3c|cisco|aruba|ruijie|huawei|mikrotik|ubiquiti|unifi|tp-?link|fortinet|fortigate|juniper|hpe?|dell|lenovo)\b/g;
+export const normalizeModel = (s: string) => s.toLowerCase().replace(VENDORS, "").replace(/[^a-z0-9]/g, "");
 
 function editDistance(a: string, b: string): number {
   if (Math.abs(a.length - b.length) > 2) return 3;
@@ -33,18 +38,21 @@ function editDistance(a: string, b: string): number {
 }
 
 /** Groups of differently spelled values that probably mean the same thing (same after normalizing, or a 1-letter typo). */
-export function similarNames(values: (string | null)[]): NameGroup[] {
+export function similarNames(
+  values: (string | null)[],
+  { normalize = normalizeName, typos = true }: { normalize?: (s: string) => string; typos?: boolean } = {},
+): NameGroup[] {
   const counts = new Map<string, number>();
   for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
   const names = [...counts.keys()];
-  const keys = names.map(normalizeName);
+  const keys = names.map(normalize);
 
   // union-find over names
   const parent = names.map((_, i) => i);
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
   for (let i = 0; i < names.length; i++)
     for (let j = i + 1; j < names.length; j++) {
-      const same = keys[i] === keys[j] || (keys[i].length >= 6 && editDistance(keys[i], keys[j]) <= 1);
+      const same = keys[i] === keys[j] || (typos && keys[i].length >= 6 && editDistance(keys[i], keys[j]) <= 1);
       if (same && keys[i]) parent[find(j)] = find(i);
     }
 
@@ -71,6 +79,10 @@ export function findIssues(devices: DeviceRow[]): CleanupIssues {
       .map((g) => ({ serial: g[0].serial as string, devices: g })),
     similarCustomers: similarNames(devices.map((d) => d.customer)),
     similarLocations: similarNames(devices.map((d) => d.location)),
+    similarModels: similarNames(
+      devices.map((d) => d.name),
+      { normalize: normalizeModel, typos: false },
+    ),
   };
 }
 
@@ -80,6 +92,7 @@ export function issueCount(i: CleanupIssues): number {
     i.noOutDate.length +
     i.duplicateSerials.length +
     i.similarCustomers.length +
-    i.similarLocations.length
+    i.similarLocations.length +
+    i.similarModels.length
   );
 }

@@ -58,7 +58,8 @@ export function nudgeCount(devices: DeviceRow[], dismissed: string[]): number {
     i.strayCustomer.length +
     i.duplicateSerials.length +
     open("customer", i.similarCustomers) +
-    open("location", i.similarLocations)
+    open("location", i.similarLocations) +
+    open("name", i.similarModels)
   );
 }
 
@@ -76,7 +77,13 @@ export function CleanupView({ devices, workspaceId, canEdit }: { devices: Device
   const issues = useMemo(() => findIssues(devices), [devices]);
   const customerGroups = issues.similarCustomers.filter((g) => !dismissed.includes(groupKey("customer", g)));
   const locationGroups = issues.similarLocations.filter((g) => !dismissed.includes(groupKey("location", g)));
-  const total = issueCount({ ...issues, similarCustomers: customerGroups, similarLocations: locationGroups });
+  const modelGroups = issues.similarModels.filter((g) => !dismissed.includes(groupKey("name", g)));
+  const total = issueCount({
+    ...issues,
+    similarCustomers: customerGroups,
+    similarLocations: locationGroups,
+    similarModels: modelGroups,
+  });
 
   function run(fn: () => Promise<{ ok: true } | { ok: false; error: string }>, done?: string) {
     setError(null);
@@ -102,7 +109,7 @@ export function CleanupView({ devices, workspaceId, canEdit }: { devices: Device
     }
   }
 
-  function mergeGroups(field: "customer" | "location", groups: NameGroup[]) {
+  function mergeGroups(field: "customer" | "location" | "name", groups: NameGroup[]) {
     return (
       <ul className="space-y-3">
         {groups.map((g) => {
@@ -193,6 +200,14 @@ export function CleanupView({ devices, workspaceId, canEdit }: { devices: Device
         count={customerGroups.length}
       >
         {mergeGroups("customer", customerGroups)}
+      </Section>
+
+      <Section
+        title="Similar model names"
+        hint="Same model written differently (for example with and without the vendor), so it shows as two rows under By model. Merge to count them together."
+        count={modelGroups.length}
+      >
+        {mergeGroups("name", modelGroups)}
       </Section>
 
       <Section

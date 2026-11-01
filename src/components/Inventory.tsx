@@ -20,6 +20,7 @@ import { deviceStats } from "@/lib/stats";
 import type { DeviceRow } from "@/lib/types";
 import { DeviceCard, OverdueBadge, isOverdue } from "./DeviceCard";
 import { DeviceDrawer } from "./DeviceDrawer";
+import { ModelList, modelKey } from "./ModelList";
 import { ImportDialog } from "./ImportDialog";
 import { StatusTiles } from "./StatTile";
 import { StatusLed } from "./StatusLed";
@@ -56,7 +57,8 @@ export function Inventory({
   const type = pick(params.get("type"), CATEGORIES);
   const status = pick<Status>(params.get("status"), STATUSES);
   const customer = params.get("customer"); // exact match, set from the dashboard
-  const view = params.get("view") === "table" ? "table" : "grid";
+  const viewParam = params.get("view");
+  const view = viewParam === "table" || viewParam === "grid" ? viewParam : "model"; // by model is the default
 
   const [q, setQ] = useState(params.get("q") ?? "");
   const [selected, setSelected] = useState<Selected>(null);
@@ -218,7 +220,9 @@ export function Inventory({
 
       <div className="mt-3 flex items-center justify-between px-1 font-mono text-xs text-[#AEB8C5]">
         <span className="flex items-center gap-3">
-          Showing {filtered.length} of {devices.length}
+          {view === "model"
+            ? `${new Set(filtered.map((d) => modelKey(d.name))).size} models · ${filtered.length} units`
+            : `Showing ${filtered.length} of ${devices.length}`}
           {customer && (
             <button
               type="button"
@@ -236,15 +240,15 @@ export function Inventory({
           )}
         </span>
         <span className="flex gap-1" role="group" aria-label="View">
-          {(["grid", "table"] as const).map((v) => (
+          {(["model", "grid", "table"] as const).map((v) => (
             <button
               key={v}
               type="button"
               aria-pressed={view === v}
-              onClick={() => setParams({ view: v === "grid" ? null : v })}
+              onClick={() => setParams({ view: v === "model" ? null : v })}
               className={`chip ${view === v ? "chip-on" : ""}`}
             >
-              {v === "grid" ? "Grid" : "Table"}
+              {v === "model" ? "By model" : v === "grid" ? "Grid" : "Table"}
             </button>
           ))}
         </span>
@@ -273,6 +277,8 @@ export function Inventory({
         </div>
       ) : filtered.length === 0 ? (
         <p className="mt-10 text-center text-sm text-[#AEB8C5]">No devices match your filters.</p>
+      ) : view === "model" ? (
+        <ModelList devices={devices} filtered={filtered} today={today} onOpen={(id) => setSelected({ id })} />
       ) : view === "table" ? (
         <div className="lg lg-dark mt-4 overflow-x-auto rounded-[22px]">
           <table className="w-full min-w-[760px] text-left text-sm">
