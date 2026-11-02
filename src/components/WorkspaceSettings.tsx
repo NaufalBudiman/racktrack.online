@@ -383,6 +383,14 @@ export function WorkspaceSettings({
                         <button type="button" className="btn-ghost py-1.5 text-xs" onClick={() => copy(url, "Share link")}>
                           Copy link
                         </button>
+                        <a
+                          href={`https://wa.me/?text=${encodeURIComponent(`RackTrack: ${l.kind === "all" ? "Inventory" : l.title} (read-only, live)\n${url}`)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-ghost py-1.5 text-xs text-[#A6EFCB]"
+                        >
+                          WhatsApp
+                        </a>
                       </>
                     )}
                     <button
