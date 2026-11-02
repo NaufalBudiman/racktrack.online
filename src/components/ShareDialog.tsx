@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createShareLink } from "@/app/app/share/actions";
 import { SHARE_EXPIRY, SHARE_KIND_LABELS, type ShareExpiry, type ShareKind } from "@/lib/share";
@@ -71,7 +72,8 @@ export function ShareDialog({
 
   const label = "mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-[#AEB8C5]";
 
-  return (
+  // Portal to <body>: glass cards (backdrop-filter) would otherwise trap position:fixed inside them.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={() => !pending && onClose()} aria-hidden />
       <div
@@ -189,7 +191,8 @@ export function ShareDialog({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
