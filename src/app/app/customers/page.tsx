@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getAppContext } from "@/lib/access";
 import { listDevices } from "@/lib/devices";
 import { CustomerList } from "@/components/CustomerList";
+import { canManageMembers } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -12,5 +13,12 @@ export default async function CustomersPage() {
   const { workspace } = ctx;
 
   const devices = await listDevices(workspace.workspaceId);
-  return <CustomerList devices={devices} workspaceName={workspace.name} />;
+  return (
+    <CustomerList
+      devices={devices}
+      workspaceName={workspace.name}
+      workspaceId={workspace.workspaceId}
+      canShare={canManageMembers(workspace.role)}
+    />
+  );
 }

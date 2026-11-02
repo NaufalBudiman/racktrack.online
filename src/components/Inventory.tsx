@@ -15,7 +15,8 @@ import {
   type Group,
   type Status,
 } from "@/lib/categories";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { ROLE_LABELS, canManageMembers, type Role } from "@/lib/roles";
+import { shareableCustomers } from "@/lib/share";
 import { deviceStats } from "@/lib/stats";
 import { placeAndChildren, type Place } from "@/lib/places";
 import type { DeviceRow } from "@/lib/types";
@@ -26,6 +27,7 @@ import { ImportDialog } from "./ImportDialog";
 import { StatusTiles } from "./StatTile";
 import { PlaceSelect } from "./PlaceSelect";
 import { StatusLed } from "./StatusLed";
+import { ShareButton } from "./ShareDialog";
 
 function localToday(): string {
   const d = new Date();
@@ -154,6 +156,20 @@ export function Inventory({
         </div>
         {canEdit && (
           <div className="flex gap-2">
+            {canManageMembers(role) && (
+              <ShareButton
+                workspaceId={workspaceId}
+                customers={shareableCustomers(devices)}
+                places={places}
+                initial={
+                  customer && shareableCustomers(devices).includes(customer)
+                    ? { kind: "customer", target: customer }
+                    : place
+                      ? { kind: "location", target: place }
+                      : { kind: "all", target: null }
+                }
+              />
+            )}
             <button type="button" className="btn-ghost" onClick={() => setImportOpen(true)}>
               Import
             </button>

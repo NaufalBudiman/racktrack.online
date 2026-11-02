@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getAppContext } from "@/lib/access";
 import { getDevice, listHistory, listSuggestions } from "@/lib/devices";
-import { canEditDevices } from "@/lib/roles";
+import { canEditDevices, canManageMembers } from "@/lib/roles";
 import { idSchema } from "@/lib/validation";
 import { DeviceDetail } from "@/components/DeviceDetail";
 
@@ -30,6 +30,7 @@ export default async function DevicePage({ params }: { params: Promise<{ id: str
       history={history}
       workspaceId={workspace.workspaceId}
       canEdit={canEditDevices(workspace.role)}
+      canShare={canManageMembers(workspace.role)}
       suggestions={suggestions}
     />
   );

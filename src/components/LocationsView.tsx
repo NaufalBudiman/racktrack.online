@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Place } from "@/lib/places";
+import { ShareButton } from "./ShareDialog";
 import type { DeviceRow } from "@/lib/types";
 import { createPlace, deletePlace, renamePlace } from "@/app/app/locations/actions";
 
@@ -48,11 +49,13 @@ export function LocationsView({
   devices,
   workspaceId,
   canEdit,
+  canShare,
 }: {
   places: Place[];
   devices: DeviceRow[];
   workspaceId: string;
   canEdit: boolean;
+  canShare: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -154,8 +157,15 @@ export function LocationsView({
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div className="mb-2">
-        <div className="eyebrow">Locations</div>
-        <h1 className="mt-1.5 font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">Where stock is kept</h1>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="eyebrow">Locations</div>
+            <h1 className="mt-1.5 font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">Where stock is kept</h1>
+          </div>
+          {canShare && places.length > 0 && (
+            <ShareButton workspaceId={workspaceId} places={places} initial={{ kind: "location", target: places[0].id }} />
+          )}
+        </div>
         <p className="mt-2 text-sm text-[#BAC3CF]">
           Sites (an office or warehouse) with spots inside them (rack, shelf, cabinet). Devices out at a customer still count
           here as “out”, since this is where they return to.

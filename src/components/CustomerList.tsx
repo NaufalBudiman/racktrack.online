@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { customerRows } from "@/lib/stats";
 import type { DeviceRow } from "@/lib/types";
 import { OverdueBadge } from "./DeviceCard";
+import { ShareButton } from "./ShareDialog";
 
 function localToday(): string {
   const d = new Date();
@@ -19,7 +20,17 @@ const SORTS = {
 } as const;
 type Sort = keyof typeof SORTS;
 
-export function CustomerList({ devices, workspaceName }: { devices: DeviceRow[]; workspaceName: string }) {
+export function CustomerList({
+  devices,
+  workspaceName,
+  workspaceId,
+  canShare,
+}: {
+  devices: DeviceRow[];
+  workspaceName: string;
+  workspaceId: string;
+  canShare: boolean;
+}) {
   const [today, setToday] = useState(""); // set after mount to avoid hydration mismatch
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<Sort>("attention");
@@ -39,13 +50,22 @@ export function CustomerList({ devices, workspaceName }: { devices: DeviceRow[];
 
   return (
     <div className="space-y-4">
-      <div className="mb-5">
-        <div className="eyebrow">Customers</div>
-        <h1 className="mt-1.5 break-words font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{workspaceName}</h1>
-        <p className="mt-2 font-mono text-xs text-[#AEB8C5]">
-          {all.length} customers · {atCustomers} devices out
-          {overdue > 0 && <span className="text-[#FFB3A6]"> · {overdue} overdue</span>}
-        </p>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="eyebrow">Customers</div>
+          <h1 className="mt-1.5 break-words font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{workspaceName}</h1>
+          <p className="mt-2 font-mono text-xs text-[#AEB8C5]">
+            {all.length} customers · {atCustomers} devices out
+            {overdue > 0 && <span className="text-[#FFB3A6]"> · {overdue} overdue</span>}
+          </p>
+        </div>
+        {canShare && all.length > 0 && (
+          <ShareButton
+            workspaceId={workspaceId}
+            customers={all.map((c) => c.name).sort((a, b) => a.localeCompare(b))}
+            initial={{ kind: "customer", target: [...all].sort((a, b) => a.name.localeCompare(b.name))[0].name }}
+          />
+        )}
       </div>
 
       <div className="lg lg-dark flex flex-col gap-2.5 rounded-[22px] p-2.5 sm:flex-row sm:items-center">

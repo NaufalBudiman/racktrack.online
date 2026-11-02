@@ -27,6 +27,10 @@ import {
   setDigest,
 } from "@/app/app/workspace/actions";
 import type { ActionResult } from "@/lib/types";
+import { revokeShareLink } from "@/app/app/share/actions";
+import { SHARE_KIND_LABELS, type ShareLinkRow } from "@/lib/share";
+import type { Place } from "@/lib/places";
+import { ShareButton } from "./ShareDialog";
 
 type Member = { userId: string; name: string | null; email: string | null; image: string | null; role: Role };
 type Invite = { id: string; email: string; role: AssignableRole; token: string; expiresAt: string };
@@ -56,6 +60,7 @@ export function WorkspaceSettings({
   members,
   invites,
   myDigest,
+  sharing,
 }: {
   workspaceId: string;
   name: string;
@@ -64,6 +69,7 @@ export function WorkspaceSettings({
   members: Member[];
   invites: Invite[] | null; // null = not allowed to see invites
   myDigest: Digest;
+  sharing: { links: ShareLinkRow[]; customers: string[]; places: Place[] } | null; // null = not allowed
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -97,10 +103,10 @@ export function WorkspaceSettings({
     });
   }
 
-  async function copy(text: string) {
+  async function copy(text: string, what = "Invite link") {
     try {
       await navigator.clipboard.writeText(text);
-      setNotice("Invite link copied.");
+      setNotice(`${what} copied.`);
     } catch {
       setNotice("Copy failed. Select the link and copy it manually.");
     }
@@ -330,6 +336,67 @@ export function WorkspaceSettings({
                 })}
               </ul>
             </>
+          )}
+        </Section>
+      )}
+
+      {sharing && (
+        <Section title="Share links" id="share">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="max-w-md text-sm text-[#BAC3CF]">
+              Read-only links anyone can open without signing in, for a manager or the field team. Notes and contacts are never shown.
+            </p>
+            <ShareButton
+              className="btn-primary"
+              workspaceId={workspaceId}
+              customers={sharing.customers}
+              places={sharing.places}
+            />
+          </div>
+          {sharing.links.length > 0 && (
+            <ul className="mt-4 divide-y divide-white/10">
+              {sharing.links.map((l) => {
+                const expired = !!l.expiresAt && l.expiresAt < now;
+                const url = `${origin}/s/${l.token}`;
+                return (
+                  <li key={l.id} className="flex flex-wrap items-center gap-2 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="break-words text-sm text-ink">
+                        <span className="font-mono text-[10.5px] uppercase tracking-wider text-[#97A3B3]">{SHARE_KIND_LABELS[l.kind]}</span>
+                        {l.kind !== "all" && <span className="ml-2">{l.title}</span>}
+                      </div>
+                      <div className={`font-mono text-[11px] ${expired ? "text-[#FFB3A6]" : "text-[#97A3B3]"}`}>
+                        {expired ? "expired" : l.expiresAt ? `expires ${l.expiresAt.slice(0, 10)}` : "never expires"}
+                        {" · "}
+                        {l.views} {l.views === 1 ? "view" : "views"}
+                        {l.lastViewedAt && ` · last ${l.lastViewedAt.slice(0, 10)}`}
+                        {!l.showSerial && " · no serials"}
+                        {!l.showCustomer && l.kind !== "customer" && " · no customers"}
+                        {l.by && ` · by ${l.by}`}
+                      </div>
+                    </div>
+                    {!expired && (
+                      <>
+                        <a href={url} target="_blank" rel="noreferrer" className="btn-ghost py-1.5 text-xs">
+                          Open
+                        </a>
+                        <button type="button" className="btn-ghost py-1.5 text-xs" onClick={() => copy(url, "Share link")}>
+                          Copy link
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-ghost py-1.5 text-xs"
+                      disabled={pending}
+                      onClick={() => run(() => revokeShareLink(workspaceId, l.id))}
+                    >
+                      {expired ? "Remove" : "Revoke"}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </Section>
       )}

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAppContext } from "@/lib/access";
 import { listDevices, listPlaces } from "@/lib/devices";
-import { canEditDevices } from "@/lib/roles";
+import { canEditDevices, canManageMembers } from "@/lib/roles";
 import { LocationsView } from "@/components/LocationsView";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,7 @@ export default async function LocationsPage() {
       devices={devices}
       workspaceId={workspace.workspaceId}
       canEdit={canEditDevices(workspace.role)}
+      canShare={canManageMembers(workspace.role)}
     />
   );
 }

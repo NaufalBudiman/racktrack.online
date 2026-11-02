@@ -5,6 +5,9 @@ import { getDb } from "@/lib/db";
 import { users, workspaceInvites, workspaceMembers } from "@/lib/schema";
 import { canManageMembers, effectiveDigest } from "@/lib/roles";
 import { WorkspaceSettings } from "@/components/WorkspaceSettings";
+import { listDevices, listPlaces } from "@/lib/devices";
+import { listShareLinks } from "@/lib/shared";
+import { shareableCustomers } from "@/lib/share";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +18,7 @@ export default async function WorkspacePage() {
   const db = getDb();
   const manage = canManageMembers(workspace.role);
 
-  const [members, invites] = await Promise.all([
+  const [members, invites, sharing] = await Promise.all([
     db
       .select({
         userId: users.id,
@@ -43,6 +46,14 @@ export default async function WorkspacePage() {
           .where(eq(workspaceInvites.workspaceId, workspace.workspaceId))
           .orderBy(asc(workspaceInvites.createdAt))
       : Promise.resolve(null),
+    // Share links (and what they can point at) are admin-only too.
+    manage
+      ? Promise.all([
+          listShareLinks(workspace.workspaceId),
+          listDevices(workspace.workspaceId),
+          listPlaces(workspace.workspaceId),
+        ]).then(([links, devices, places]) => ({ links, customers: shareableCustomers(devices), places }))
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -58,6 +69,7 @@ export default async function WorkspacePage() {
         members.find((m) => m.userId === ctx.userId)?.digest ?? null,
       )}
       invites={invites?.map((i) => ({ ...i, expiresAt: i.expiresAt.toISOString() })) ?? null}
+      sharing={sharing}
     />
   );
 }

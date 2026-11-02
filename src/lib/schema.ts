@@ -1,5 +1,6 @@
 import {
   type AnyPgColumn,
+  boolean,
   check,
   date,
   doublePrecision,
@@ -16,6 +17,7 @@ import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { Assignment, Status } from "./categories";
 import type { AssignableRole, Digest, Role } from "./roles";
+import type { ShareKind } from "./share";
 
 /* ---------- Auth.js (Drizzle adapter) tables ---------- */
 
@@ -152,6 +154,31 @@ export const stockMinimums = pgTable(
   (t) => [
     primaryKey({ columns: [t.workspaceId, t.modelKey] }),
     check("stock_minimums_min_check", sql`${t.minStock} between 1 and 1000`),
+  ],
+);
+
+// Read-only public links (/s/<token>), no sign-in. target = customer name, location id or device id (null for "all").
+export const shareLinks = pgTable(
+  "share_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    kind: text("kind").$type<ShareKind>().notNull(),
+    target: text("target"),
+    showCustomer: boolean("show_customer").notNull().default(true),
+    showSerial: boolean("show_serial").notNull().default(true),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }), // null = never
+    views: integer("views").notNull().default(0),
+    lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("share_links_workspace_idx").on(t.workspaceId),
+    check("share_links_kind_check", sql`${t.kind} in ('all', 'customer', 'location', 'device')`),
   ],
 );
 

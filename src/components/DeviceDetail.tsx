@@ -11,6 +11,7 @@ import { DeviceDrawer, Row, type Suggestions } from "./DeviceDrawer";
 import { DeviceActions } from "./DeviceActions";
 import { StatusLed } from "./StatusLed";
 import { Timeline } from "./Timeline";
+import { ShareButton } from "./ShareDialog";
 
 function localToday(): string {
   const d = new Date();
@@ -32,12 +33,14 @@ export function DeviceDetail({
   history,
   workspaceId,
   canEdit,
+  canShare,
   suggestions,
 }: {
   device: DeviceRow;
   history: HistoryItem[];
   workspaceId: string;
   canEdit: boolean;
+  canShare: boolean;
   suggestions: Suggestions;
 }) {
   const router = useRouter();
@@ -92,6 +95,9 @@ export function DeviceDetail({
                 </>
               ) : (
                 <>
+                  {canShare && (
+                    <ShareButton workspaceId={workspaceId} fixed={{ kind: "device", target: d.id, title: d.name }} />
+                  )}
                   <button type="button" className="btn-danger" onClick={() => setConfirmDelete(true)}>
                     Delete
                   </button>
