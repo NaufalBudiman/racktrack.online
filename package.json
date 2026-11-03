@@ -30,7 +30,9 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "read-excel-file": "^9.3.14",
-    "zod": "^4.6.7"
+    "tesseract.js": "^7.0.0",
+    "zod": "^4.6.7",
+    "zxing-wasm": "^3.1.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

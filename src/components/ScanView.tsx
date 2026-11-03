@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CATEGORY_GROUPS,
@@ -12,6 +13,7 @@ import {
   type Category,
 } from "@/lib/categories";
 import { parseScan, serialKey } from "@/lib/scan";
+import { guessModel, labelContext } from "@/lib/labels";
 import { isOverdue } from "@/lib/stats";
 import type { Place } from "@/lib/places";
 import type { DeviceRow } from "@/lib/types";
@@ -20,6 +22,9 @@ import { DeviceDrawer, type Suggestions } from "./DeviceDrawer";
 import { Scanner } from "./Scanner";
 import { StatusLed } from "./StatusLed";
 import { PlaceSelect } from "./PlaceSelect";
+import { PhotoScan, type PhotoResult } from "./PhotoScan";
+import { BulkMoveDialog, canSend } from "./BulkMoveDialog";
+import { NewSerials } from "./NewSerials";
 
 function localToday(): string {
   const d = new Date();
@@ -27,7 +32,9 @@ function localToday(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-type Mode = "lookup" | "receive";
+type Mode = "lookup" | "receive" | "send";
+type ToSend = { key: string; serial: string; deviceId: string | null; model: string | null };
+const MODE_LABELS: Record<Mode, string> = { lookup: "Look up", receive: "Receive stock", send: "Send out" };
 type Flash = { tone: "ok" | "warn" | "bad"; text: string } | null;
 type Open = { id: string } | { newSerial: string } | null;
 
@@ -71,6 +78,11 @@ export function ScanView({
   const [batch, setBatch] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
 
+  // send mode: scan everything going out, then send it all to one project
+  const [toSend, setToSend] = useState<ToSend[]>([]);
+  const [sending, setSending] = useState(false);
+  const ctx = useMemo(() => labelContext(devices), [devices]);
+
   const bySerial = useMemo(() => {
     const m = new Map<string, DeviceRow[]>();
     for (const d of devices) if (d.serial) m.set(serialKey(d.serial), [...(m.get(serialKey(d.serial)) ?? []), d]);
@@ -85,6 +97,12 @@ export function ScanView({
       models: rank(devices.map((d) => d.name)).map((name) => ({ name, category: cat.get(name) ?? "Lainnya" })),
     };
   }, [devices, places]);
+
+  const byId = useMemo(() => new Map(devices.map((d) => [d.id, d])), [devices]);
+  const resolve = (t: ToSend) => (t.deviceId ? byId.get(t.deviceId) : bySerial.get(t.key)?.[0]) ?? null;
+  const sendRows = toSend.map((t) => ({ t, device: resolve(t) }));
+  const sendKnown = sendRows.flatMap((r) => (r.device ? [r.device] : []));
+  const sendNew = sendRows.filter((r) => !r.device).map((r) => ({ serial: r.t.serial, model: r.t.model }));
 
   const slotsLeft = MAX_DEVICES_PER_WORKSPACE - devices.length - batch.length;
   const openDevice = open && "id" in open ? devices.find((d) => d.id === open.id) ?? null : null;
@@ -136,7 +154,48 @@ export function ScanView({
     setFlash({ tone: "ok", text: `Added ${r.serial}` });
   }
 
-  const onScan = (text: string) => (mode === "lookup" ? lookup(text) : receive(text));
+  function queue(raw: string, model: string | null = null) {
+    const r = parseScan(raw);
+    if (r.kind === "empty") return;
+    const device = r.kind === "device" ? byId.get(r.id) : bySerial.get(serialKey(r.serial))?.[0];
+    if (r.kind === "device" && !device) return setFlash({ tone: "bad", text: "That label belongs to a device outside this workspace." });
+    const serial = device?.serial ?? (r.kind === "serial" ? r.serial : r.id);
+    const key = serialKey(serial);
+    setToSend((list) => {
+      if (list.some((t) => t.key === key)) return list;
+      return [{ key, serial, deviceId: device?.id ?? null, model: device ? null : model ?? guessModel(serial, ctx, null) }, ...list];
+    });
+    if (!device) setFlash({ tone: "warn", text: `${serial} is not in RackTrack yet. Add it below, then send.` });
+    else if (!canSend(device))
+      setFlash({ tone: "bad", text: `${device.name} is ${statusLabel(device.status)}${device.customer ? ` (${device.customer})` : ""}, so it can't be sent.` });
+    else setFlash({ tone: "ok", text: `✓ ${device.name} · ${serial}` });
+  }
+
+  const onScan = (text: string) => (mode === "lookup" ? lookup(text) : mode === "receive" ? receive(text) : queue(text));
+
+  function onPhoto(r: PhotoResult) {
+    const codes = [...r.items.map((i) => i.serial), ...r.deviceIds.map((id) => `/d/${id}`)];
+    if (!codes.length) return;
+    if (mode === "send") {
+      r.items.forEach((i) => queue(i.serial, i.model));
+      r.deviceIds.forEach((id) => queue(`/d/${id}`));
+      setFlash({ tone: "ok", text: `Photo: ${codes.length} code${codes.length === 1 ? "" : "s"} read.` });
+    } else if (mode === "receive") {
+      const guess = r.items.find((i) => i.model)?.model;
+      if (!model.trim() && guess) pickModel(guess);
+      r.items.forEach((i) => receive(i.serial));
+      if (r.items.length > 1) setFlash({ tone: "ok", text: `Photo: ${r.items.length} serials read${guess ? ` (${guess})` : ""}. Check the list.` });
+    } else if (codes.length === 1) {
+      lookup(codes[0]);
+    } else {
+      const hits = codes.flatMap((c) => {
+        const p = parseScan(c);
+        return p.kind === "device" ? (byId.get(p.id) ? [byId.get(p.id)!] : []) : p.kind === "serial" ? bySerial.get(serialKey(p.serial)) ?? [] : [];
+      });
+      setMatches(hits);
+      setFlash({ tone: hits.length ? "ok" : "warn", text: `Photo: ${codes.length} codes, ${hits.length} in RackTrack.` });
+    }
+  }
 
   function submitManual(e: React.FormEvent) {
     e.preventDefault();
@@ -171,13 +230,13 @@ export function ScanView({
       <div className="mb-2">
         <div className="eyebrow">Scan</div>
         <h1 className="mt-1.5 font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
-          {mode === "lookup" ? "Find a device" : "Receive stock"}
+          {{ lookup: "Find a device", receive: "Receive stock", send: "Send out" }[mode]}
         </h1>
       </div>
 
       {canEdit && (
         <div className="flex gap-1" role="group" aria-label="Scan mode">
-          {(["lookup", "receive"] as const).map((m) => (
+          {(["lookup", "receive", "send"] as const).map((m) => (
             <button
               key={m}
               type="button"
@@ -189,15 +248,21 @@ export function ScanView({
               }}
               className={`chip ${mode === m ? "chip-on" : ""}`}
             >
-              {m === "lookup" ? "Look up" : "Receive stock"}
+              {MODE_LABELS[m]}
             </button>
           ))}
         </div>
       )}
+      <Link href="/app/opname" className="flex items-center justify-between gap-3 rounded-xl bg-white/[.05] px-4 py-2.5 text-sm text-[#C3CBD6] shadow-[inset_0_0_0_1px_rgba(255,255,255,.1)] transition hover:bg-white/[.08] lg:hidden">
+        <span>Counting the whole warehouse?</span>
+        <span className="shrink-0 font-mono text-xs text-[#FFC27A]">Stock opname →</span>
+      </Link>
       <p className="text-sm text-[#AEB8C5]">
         {mode === "lookup"
           ? "Scan a box, device label or RackTrack QR. Found devices open with their actions; unknown serials open Add device with the serial filled in."
-          : "Pick the model once, then scan every box. Each serial is checked for duplicates. Save adds them all as In Stock."}
+          : mode === "receive"
+            ? "Pick the model once (or take a photo of a label and it's filled in), then scan every box. Each serial is checked for duplicates. Save adds them all as In Stock."
+            : "Scan or photograph everything going out, then send it all to one project. Serials not in RackTrack yet can be added first, so nothing leaves unrecorded."}
       </p>
 
       {mode === "receive" && (
@@ -241,9 +306,10 @@ export function ScanView({
         </section>
       )}
 
-      {(mode === "lookup" || receiveReady) && (
+      {(mode !== "receive" || receiveReady) && (
         <>
-          <Scanner onScan={onScan} paused={open !== null || pending} />
+          <Scanner onScan={onScan} paused={open !== null || pending || sending} />
+          <PhotoScan ctx={ctx} onResult={onPhoto} disabled={pending} />
 
           <form onSubmit={submitManual} className="flex gap-2">
             <label className="sr-only" htmlFor={`${ids}-manual`}>Serial or code</label>
@@ -264,7 +330,12 @@ export function ScanView({
         </>
       )}
       {mode === "receive" && !receiveReady && (
-        <p className="rounded-xl bg-black/25 px-4 py-6 text-center text-sm text-[#AEB8C5]">Pick or type the model first.</p>
+        <div className="space-y-3 rounded-xl bg-black/25 px-4 py-6 text-center text-sm text-[#AEB8C5]">
+          <p>Pick or type the model first, or photograph a label to fill it in.</p>
+          <div className="flex justify-center">
+            <PhotoScan ctx={ctx} onResult={onPhoto} disabled={pending} />
+          </div>
+        </div>
       )}
 
       {flash && (
@@ -325,6 +396,68 @@ export function ScanView({
             </button>
           </div>
         </section>
+      )}
+
+      {mode === "send" && toSend.length > 0 && (
+        <section className="lg lg-dark space-y-3 rounded-[22px] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-mono text-sm font-semibold tracking-wider">Going out · {toSend.length}</h2>
+            <button type="button" className="btn-ghost px-3 py-1.5 text-xs" onClick={() => setToSend([])} disabled={pending}>
+              Clear
+            </button>
+          </div>
+          {sendKnown.length > 0 && (
+            <ul className="max-h-72 divide-y divide-white/10 overflow-y-auto">
+              {sendRows.filter((r) => r.device).map(({ t, device }) => (
+                <li key={t.key} className="flex items-center gap-3 py-2">
+                  <StatusLed status={device!.status} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-mono text-sm normal-case text-ink">{device!.name}</span>
+                    <span className="block truncate text-xs text-[#97A3B3]">
+                      <span className="font-mono">{t.serial}</span>
+                      {!canSend(device!) && <span className="text-[#FFB3A6]"> · {statusLabel(device!.status)}, will be skipped</span>}
+                    </span>
+                  </span>
+                  <button type="button" className="px-2 text-[#AEB8C5] hover:text-[#FFB3A6]" aria-label={`Remove ${t.serial}`} onClick={() => setToSend((l) => l.filter((x) => x.key !== t.key))}>
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {sendNew.length > 0 && (
+            <div className="rounded-xl bg-amber/10 p-3 shadow-[inset_0_0_0_1px_rgba(239,155,62,.45)]">
+              <p className="mb-2 text-sm text-[#FFE1B8]">
+                {sendNew.length} not in RackTrack yet. Add {sendNew.length === 1 ? "it" : "them"} to stock first, then {sendNew.length === 1 ? "it joins" : "they join"} the list above.
+              </p>
+              <NewSerials
+                items={sendNew}
+                workspaceId={workspaceId}
+                places={places}
+                locationId={locationId || null}
+                models={suggestions.models ?? []}
+                onRemove={(serial) => setToSend((l) => l.filter((x) => x.key !== serialKey(serial)))}
+              />
+            </div>
+          )}
+          <div className="flex justify-end">
+            <button type="button" className="btn-primary" disabled={pending || !sendKnown.some(canSend)} onClick={() => setSending(true)}>
+              Send {sendKnown.filter(canSend).length} to project
+            </button>
+          </div>
+        </section>
+      )}
+
+      {sending && (
+        <BulkMoveDialog
+          kind="send"
+          devices={sendKnown}
+          workspaceId={workspaceId}
+          customers={suggestions.customers ?? []}
+          places={places}
+          onDone={() => setToSend([])}
+          onClose={() => setSending(false)}
+        />
       )}
 
       {open && (openDevice || "newSerial" in open) && (

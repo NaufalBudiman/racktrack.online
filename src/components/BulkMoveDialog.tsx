@@ -30,6 +30,9 @@ export function BulkMoveDialog({
   places,
   onClose,
   onDone,
+  eligibleFor,
+  defaultNote = "",
+  offerReceipt = true,
 }: {
   kind: BulkKind;
   devices: DeviceRow[]; // the selection; ineligible ones are skipped and listed
@@ -38,13 +41,16 @@ export function BulkMoveDialog({
   places: Place[];
   onClose: () => void;
   onDone: () => void;
+  eligibleFor?: (d: DeviceRow) => boolean; // overrides the usual Send/Return rules (stock opname)
+  defaultNote?: string;
+  offerReceipt?: boolean; // default for "Make a tanda terima right after"
 }) {
   const router = useRouter();
   const ids = useId();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const eligible = devices.filter(kind === "send" ? canSend : canReturn);
+  const eligible = devices.filter(eligibleFor ?? (kind === "send" ? canSend : canReturn));
   const skipped = devices.length - eligible.length;
 
   const [customer, setCustomer] = useState("");
@@ -52,8 +58,8 @@ export function BulkMoveDialog({
   const [outDate, setOutDate] = useState(localToday);
   const [returnDate, setReturnDate] = useState("");
   const [contact, setContact] = useState("");
-  const [note, setNote] = useState("");
-  const [receipt, setReceipt] = useState(true);
+  const [note, setNote] = useState(defaultNote);
+  const [receipt, setReceipt] = useState(offerReceipt);
   const [result, setResult] = useState<"Available" | "Faulty">("Available");
   const [locationId, setLocationId] = useState(() => {
     const first = eligible.find((d) => d.locationId)?.locationId;

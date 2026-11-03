@@ -12,6 +12,7 @@ import {
 import { ROLE_LABELS, canManageMembers, type Role } from "@/lib/roles";
 import { customerRows, deviceStats } from "@/lib/stats";
 import { lowStock } from "@/lib/models";
+import type { CountStatus } from "@/lib/countTypes";
 import type { DeviceRow, HistoryItem } from "@/lib/types";
 import { OverdueBadge, isOverdue } from "./DeviceCard";
 import { StatusTiles } from "./StatTile";
@@ -88,6 +89,7 @@ export function Dashboard({
   devices,
   history,
   minimums,
+  counts = [],
   workspaceId,
   workspaceName,
   role,
@@ -96,6 +98,7 @@ export function Dashboard({
   devices: DeviceRow[];
   history: HistoryItem[];
   minimums: Record<string, number>;
+  counts?: { id: string; scope: string; status: CountStatus; found: number; expected: number; open: number }[];
   workspaceId: string;
   workspaceName: string;
   role: Role;
@@ -154,6 +157,23 @@ export function Dashboard({
           </div>
         )}
       </div>
+
+      {counts.map((c) => (
+        <Link
+          key={c.id}
+          href={`/app/opname/${c.id}`}
+          className="flex items-center justify-between gap-3 rounded-xl bg-cyan/10 px-4 py-2.5 text-sm text-[#BDEFF8] shadow-[inset_0_0_0_1px_rgba(93,201,224,.45)] transition hover:bg-cyan/15"
+        >
+          <span>
+            {c.status === "open"
+              ? `Stock opname at ${c.scope} in progress: ${c.found} of ${c.expected} found.`
+              : c.open
+                ? `Stock opname at ${c.scope}: ${c.open} item${c.open === 1 ? "" : "s"} still unclear.`
+                : `Stock opname at ${c.scope} is sorted out. Close it.`}
+          </span>
+          <span className="shrink-0 font-mono text-xs text-[#8FE3F2]">{c.status === "open" ? "Continue →" : "Review →"}</span>
+        </Link>
+      ))}
 
       {toClean > 0 && (
         <Link

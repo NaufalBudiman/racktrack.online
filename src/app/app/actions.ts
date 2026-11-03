@@ -230,6 +230,11 @@ async function planMove(workspaceId: string, existing: DbDevice, move_: Move, pl
       text = `${verb}${from} → ${statusLabel(move_.result)}`;
       break;
     }
+    case "relocate": {
+      patch = { locationId: move_.locationId };
+      text = "Moved";
+      break;
+    }
     case "status": {
       if (existing.status === move_.status) return { ok: false as const, error: `Already ${statusLabel(move_.status)}.` };
       patch = { status: move_.status };
@@ -243,7 +248,7 @@ async function planMove(workspaceId: string, existing: DbDevice, move_: Move, pl
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const place = await resolvePlace(workspaceId, parsed.data, places);
   if (!place.ok) return place;
-  if (move_.type === "checkin" && place.location) text += ` (${place.location})`;
+  if ((move_.type === "checkin" || move_.type === "relocate") && place.location) text += ` (${place.location})`;
   if (move_.note) text += ` — ${move_.note}`;
   // Tag the project it went to, or the one it came back from.
   const project = (move_.type === "checkout" ? move_.customer : existing.customer) ?? null;
@@ -357,13 +362,14 @@ const receiveSchema = z.object({
     .array(z.string().trim().min(1).max(120))
     .min(1, "Scan at least one serial")
     .max(MAX_DEVICES_PER_WORKSPACE),
+  note: z.string().trim().max(200).nullish(),
 });
 
 /** Receive stock: one model, many scanned serials, all added In Stock in one go (all or nothing). */
 export async function receiveDevices(
   workspaceId: unknown,
   input: unknown,
-): Promise<ActionResult<{ added: number }>> {
+): Promise<ActionResult<{ added: number; ids: string[] }>> {
   const auth = await authorize(workspaceId, "editor");
   if (!auth.ok) return auth;
   const parsed = receiveSchema.safeParse(input);
@@ -408,11 +414,11 @@ export async function receiveDevices(
     db.insert(devices).values(rows),
     db
       .insert(deviceHistory)
-      .values(rows.map((r) => ({ deviceId: r.id, userId: auth.userId, text: `Received into stock${location ? ` (${location})` : ""}` }))),
+      .values(rows.map((r) => ({ deviceId: r.id, userId: auth.userId, text: `Received into stock${location ? ` (${location})` : ""}${parsed.data.note ? ` — ${parsed.data.note}` : ""}` }))),
   ]);
 
   revalidatePath("/app", "layout");
-  return { ok: true, added: rows.length };
+  return { ok: true, added: rows.length, ids: rows.map((r) => r.id) };
 }
 
 /** Low-stock threshold for a model; null or 0 removes it. */

@@ -21,6 +21,7 @@ import type { AssignableRole, Digest, Role } from "./roles";
 import type { ShareKind } from "./share";
 import type { ProjectStatus } from "./projectTypes";
 import type { ReceiptItem } from "./receiptTypes";
+import type { CountExpected, CountStatus } from "./countTypes";
 
 /* ---------- Auth.js (Drizzle adapter) tables ---------- */
 
@@ -312,4 +313,48 @@ export const deviceHistory = pgTable(
       .defaultNow(),
   },
   (t) => [index("device_history_device_idx").on(t.deviceId), index("device_history_project_idx").on(t.project)],
+);
+
+// Stock opname: a recount of what should be in the warehouse. `expected` is frozen at the start (devices In Stock,
+// Internal Use or Faulty in the chosen site, or everywhere when location_id is null), so the result doesn't shift while
+// people scan. open = scanning, review = scanning done and fixes being applied, closed = finished.
+export const stockCounts = pgTable(
+  "stock_counts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    locationId: uuid("location_id").references(() => locations.id, { onDelete: "set null" }),
+    scope: text("scope").notNull(), // label of the area counted, kept if the location is renamed or removed
+    status: text("status").$type<CountStatus>().notNull().default("open"),
+    expected: jsonb("expected").$type<CountExpected[]>().notNull(),
+    note: text("note"),
+    startedBy: text("started_by").references(() => users.id, { onDelete: "set null" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("stock_counts_workspace_idx").on(t.workspaceId),
+    check("stock_counts_status_check", sql`${t.status} in ('open', 'review', 'closed')`),
+  ],
+);
+
+// One row per serial seen during a count (several people can scan at once). device_id is the match at scan time.
+export const stockCountScans = pgTable(
+  "stock_count_scans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    countId: uuid("count_id")
+      .notNull()
+      .references(() => stockCounts.id, { onDelete: "cascade" }),
+    serial: text("serial").notNull(),
+    serialKey: text("serial_key").notNull(), // lowercased, for the duplicate check
+    deviceId: uuid("device_id").references(() => devices.id, { onDelete: "set null" }),
+    model: text("model"), // guessed from the label when the serial isn't in the workspace
+    scannedBy: text("scanned_by").references(() => users.id, { onDelete: "set null" }),
+    scannedAt: timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("stock_count_scans_key_idx").on(t.countId, t.serialKey)],
 );

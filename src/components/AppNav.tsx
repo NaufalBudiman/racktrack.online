@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CATEGORY_GROUPS, GROUPS, GROUP_COLORS, categoryLabel, groupLabel } from "@/lib/categories";
 
-type IconName = "dashboard" | "devices" | "customers" | "locations" | "activity" | "team" | "scan";
+type IconName = "dashboard" | "devices" | "customers" | "locations" | "activity" | "team" | "scan" | "opname";
 
 const NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/app", label: "Dashboard", icon: "dashboard" },
@@ -16,7 +16,12 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
 ];
 
 // The sidebar also lists Scan; on phones it's the floating button instead of a tab.
-const SIDEBAR_NAV = [...NAV.slice(0, 2), { href: "/app/scan", label: "Scan", icon: "scan" as const }, ...NAV.slice(2)];
+const SIDEBAR_NAV = [
+  ...NAV.slice(0, 2),
+  { href: "/app/scan", label: "Scan", icon: "scan" as const },
+  { href: "/app/opname", label: "Stock opname", icon: "opname" as const },
+  ...NAV.slice(2),
+];
 // Five tabs fit a phone; Activity stays reachable from the dashboard's "See all".
 const TAB_NAV = NAV.filter((n) => n.href !== "/app/activity");
 
@@ -50,6 +55,12 @@ function Icon({ name }: { name: IconName }) {
       </>
     ),
     activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
+    opname: (
+      <>
+        <rect x="5" y="4" width="14" height="17" rx="2" />
+        <path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6" />
+      </>
+    ),
     scan: <path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3M7 12h10" />,
     team: (
       <>

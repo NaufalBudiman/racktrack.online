@@ -102,6 +102,11 @@ export const moveSchema = z.discriminatedUnion("type", [
     note,
   }),
   z.object({
+    type: z.literal("relocate"), // same status, different shelf (stock opname)
+    locationId: z.union([z.string().uuid(), z.literal("")]).nullish().transform((v) => v || null),
+    note,
+  }),
+  z.object({
     type: z.literal("status"),
     status: z.enum(["Internal", "Faulty", "Hilang", "Retired"], "Pick a valid status"),
     note,
