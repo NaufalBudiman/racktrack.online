@@ -14,7 +14,13 @@ export const dynamic = "force-dynamic";
 // Today in WIB, so the default date doesn't flip at 07:00 like UTC would.
 const todayWib = () => new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
 
-export default async function NewReceiptPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function NewReceiptPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ devices?: string }>;
+}) {
   const ctx = await getAppContext();
   if (!ctx) redirect("/");
   const { workspace } = ctx;
@@ -42,6 +48,7 @@ export default async function NewReceiptPage({ params }: { params: Promise<{ id:
         senderName: data.project.pic ?? me?.name ?? "",
         suggestedNumber: suggested,
       }}
+      preselected={(await searchParams).devices?.split(",").filter(Boolean)}
       settingsMissing={!settings.letterhead && !settings.companyName}
       canSetup={workspace.role === "owner" || workspace.role === "admin"}
     />

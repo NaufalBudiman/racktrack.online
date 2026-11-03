@@ -128,9 +128,10 @@ export async function listPlaces(workspaceId: string): Promise<Place[]> {
 export async function resolvePlace(
   workspaceId: string,
   input: { locationId?: string | null; location?: string | null },
+  known?: Place[], // pass when resolving many devices at once
 ): Promise<{ ok: true; locationId: string | null; location: string | null } | { ok: false; error: string }> {
   if (input.locationId === null) return { ok: true, locationId: null, location: null };
-  const places = await listPlaces(workspaceId);
+  const places = known ?? (await listPlaces(workspaceId));
   if (input.locationId) {
     const p = places.find((x) => x.id === input.locationId);
     return p ? { ok: true, locationId: p.id, location: p.label } : { ok: false, error: "That location no longer exists." };

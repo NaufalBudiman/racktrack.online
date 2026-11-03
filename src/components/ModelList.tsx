@@ -33,6 +33,7 @@ export function ModelList({
   minimums,
   workspaceId,
   canEdit,
+  selection,
 }: {
   devices: DeviceRow[];
   filtered: DeviceRow[];
@@ -41,12 +42,14 @@ export function ModelList({
   minimums: Record<string, number>;
   workspaceId: string;
   canEdit: boolean;
+  selection?: { picked: Set<string>; toggle: (ids: string[], on: boolean) => void }; // select mode
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [minDraft, setMinDraft] = useState<Record<string, string>>({});
   const [minError, setMinError] = useState<{ key: string; text: string } | null>(null);
   const [saving, startSaving] = useTransition();
+  const [pickDraft, setPickDraft] = useState<Record<string, string>>({});
 
   function saveMin(m: { key: string; name: string }) {
     const raw = (minDraft[m.key] ?? "").trim();
@@ -169,7 +172,45 @@ export function ModelList({
 
             {expanded && (
               <div id={panelId} className="border-t border-white/[.06] bg-black/20 px-4 py-2">
-                {canEdit ? (
+                {selection ? (
+                  <form
+                    className="flex flex-wrap items-center gap-2 py-2 pl-6 text-xs text-[#AEB8C5]"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      // Pick N in-stock units that aren't picked yet, in serial order.
+                      const want = Math.max(0, Number(pickDraft[m.key] ?? 0) || 0);
+                      const free = m.units
+                        .filter((d) => d.status === "Available" && !selection.picked.has(d.id))
+                        .sort((a, b) => (a.serial ?? "").localeCompare(b.serial ?? ""));
+                      selection.toggle(free.slice(0, want).map((d) => d.id), true);
+                    }}
+                  >
+                    <label htmlFor={`${panelId}-pick`}>Select</label>
+                    <input
+                      id={`${panelId}-pick`}
+                      type="number"
+                      min={1}
+                      max={m.units.length}
+                      inputMode="numeric"
+                      className="input w-20 py-1 text-xs"
+                      placeholder="qty"
+                      value={pickDraft[m.key] ?? ""}
+                      onChange={(e) => setPickDraft({ ...pickDraft, [m.key]: e.target.value })}
+                    />
+                    <span>in stock</span>
+                    <button type="submit" className="btn-ghost px-2.5 py-1 text-[11px]">Pick</button>
+                    <button
+                      type="button"
+                      className="btn-ghost px-2.5 py-1 text-[11px]"
+                      onClick={() => {
+                        const all = m.units.map((d) => d.id);
+                        selection.toggle(all, !all.every((id) => selection.picked.has(id)));
+                      }}
+                    >
+                      {m.units.every((d) => selection.picked.has(d.id)) ? "Unselect all" : `All ${m.units.length} shown`}
+                    </button>
+                  </form>
+                ) : canEdit ? (
                   <form
                     className="flex flex-wrap items-center gap-2 py-2 pl-6 text-xs text-[#AEB8C5]"
                     onSubmit={(e) => {
@@ -211,9 +252,22 @@ export function ModelList({
                       <li key={d.id}>
                         <button
                           type="button"
-                          onClick={() => onOpen(d.id)}
-                          className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg py-2 pl-6 pr-1 text-left text-sm transition hover:bg-white/[.04]"
+                          onClick={() => (selection ? selection.toggle([d.id], !selection.picked.has(d.id)) : onOpen(d.id))}
+                          aria-pressed={selection ? selection.picked.has(d.id) : undefined}
+                          className={`flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg py-2 pr-1 text-left text-sm transition hover:bg-white/[.04] ${
+                            selection ? "pl-2" : "pl-6"
+                          } ${selection?.picked.has(d.id) ? "bg-amber/10" : ""}`}
                         >
+                          {selection && (
+                            <span
+                              aria-hidden
+                              className={`grid h-4 w-4 shrink-0 place-items-center rounded text-[10px] font-bold ${
+                                selection.picked.has(d.id) ? "bg-[#F7A23A] text-[#1D1104]" : "bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,.25)]"
+                              }`}
+                            >
+                              {selection.picked.has(d.id) ? "✓" : ""}
+                            </span>
+                          )}
                           <span className="min-w-[9rem] font-mono text-[13px] text-ink">{d.serial ?? "no serial"}</span>
                           <span className="flex items-center gap-1.5 text-xs text-[#C3CBD6]">
                             <StatusLed status={d.status} size={6} />

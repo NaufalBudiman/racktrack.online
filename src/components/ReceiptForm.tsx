@@ -13,6 +13,7 @@ export function ReceiptForm({
   project: p,
   devices,
   defaults,
+  preselected,
   settingsMissing,
   canSetup,
 }: {
@@ -20,13 +21,18 @@ export function ReceiptForm({
   project: ProjectRow;
   devices: DeviceRow[];
   defaults: { date: string; city: string; senderName: string; suggestedNumber: string };
+  preselected?: string[]; // device ids just sent here (bulk send); default = everything on site
   settingsMissing: boolean;
   canSetup: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(devices.map((d) => d.id)));
+  const [picked, setPicked] = useState<Set<string>>(() => {
+    const on = devices.map((d) => d.id);
+    const pre = preselected && on.filter((id) => preselected.includes(id));
+    return new Set(pre?.length ? pre : on);
+  });
   const [f, setF] = useState({
     company: p.company ?? p.name,
     address: p.address ?? "",

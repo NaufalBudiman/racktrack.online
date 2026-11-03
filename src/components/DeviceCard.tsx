@@ -16,20 +16,33 @@ export function DeviceCard({
   device: d,
   overdue,
   onOpen,
+  checked,
 }: {
   device: DeviceRow;
   overdue: boolean;
   onOpen: () => void;
+  checked?: boolean; // select mode: undefined = not selecting
 }) {
   const group = groupOf(d.category);
   return (
     <button
       type="button"
       onClick={onOpen}
+      aria-pressed={checked}
       className={`lg lg-dark group w-full rounded-[20px] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:bg-white/[.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber ${
-        overdue ? "outline outline-1 outline-red/50" : ""
+        checked ? "outline outline-2 outline-amber" : overdue ? "outline outline-1 outline-red/50" : ""
       }`}
     >
+      {checked !== undefined && (
+        <span
+          aria-hidden
+          className={`float-right ml-2 grid h-5 w-5 place-items-center rounded-md text-[12px] font-bold ${
+            checked ? "bg-[#F7A23A] text-[#1D1104]" : "bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,.25)]"
+          }`}
+        >
+          {checked ? "✓" : ""}
+        </span>
+      )}
       <div className="flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-widest">
         <span className="flex min-w-0 items-center gap-1.5" style={{ color: GROUP_COLORS[group] }}>
           <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: GROUP_COLORS[group] }} />

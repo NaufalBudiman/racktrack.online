@@ -28,6 +28,7 @@ import { StatusTiles } from "./StatTile";
 import { PlaceSelect } from "./PlaceSelect";
 import { StatusLed } from "./StatusLed";
 import { ShareButton } from "./ShareDialog";
+import { BulkMoveDialog, canReturn, canSend, type BulkKind } from "./BulkMoveDialog";
 
 function localToday(): string {
   const d = new Date();
@@ -74,6 +75,20 @@ export function Inventory({
   const [q, setQ] = useState(params.get("q") ?? "");
   const [selected, setSelected] = useState<Selected>(null);
   const [importOpen, setImportOpen] = useState(false);
+  // Select mode: pick many devices, then Send / Return them together.
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<BulkKind | null>(null);
+  const toggle = (ids: string[], on: boolean) =>
+    setPicked((s) => {
+      const n = new Set(s);
+      ids.forEach((id) => (on ? n.add(id) : n.delete(id)));
+      return n;
+    });
+  const stopSelecting = () => {
+    setSelecting(false);
+    setPicked(new Set());
+  };
   const [today, setToday] = useState(""); // set after mount to avoid hydration mismatch
 
   function setParams(updates: Record<string, string | null>) {
@@ -137,6 +152,7 @@ export function Inventory({
   }, [devices, places]);
 
   const atLimit = devices.length >= MAX_DEVICES_PER_WORKSPACE;
+  const pickedDevices = useMemo(() => devices.filter((d) => picked.has(d.id)), [devices, picked]);
   const selectedDevice = selected && selected !== "new" ? devices.find((d) => d.id === selected.id) ?? null : null;
   const filtersActive = q !== "" || group !== "All" || type !== "All" || status !== "All" || !!customer || !!place;
 
@@ -256,8 +272,8 @@ export function Inventory({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between px-1 font-mono text-xs text-[#AEB8C5]">
-        <span className="flex items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1 font-mono text-xs text-[#AEB8C5]">
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {view === "model"
             ? `${new Set(filtered.map((d) => modelKey(d.name))).size} models · ${filtered.length} units`
             : `Showing ${filtered.length} of ${devices.length}`}
@@ -276,8 +292,30 @@ export function Inventory({
               Clear filters
             </button>
           )}
+          {selecting && filtered.length > 0 && (
+            <button
+              type="button"
+              className="text-[#FFC27A] hover:underline"
+              onClick={() => {
+                const ids = filtered.map((d) => d.id);
+                toggle(ids, !ids.every((id) => picked.has(id)));
+              }}
+            >
+              {filtered.every((d) => picked.has(d.id)) ? "Unselect shown" : `Select all ${filtered.length} shown`}
+            </button>
+          )}
         </span>
         <span className="flex gap-1" role="group" aria-label="View">
+          {canEdit && devices.length > 0 && (
+            <button
+              type="button"
+              aria-pressed={selecting}
+              onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+              className={`chip mr-1.5 ${selecting ? "chip-on" : ""}`}
+            >
+              {selecting ? "Done" : "Select"}
+            </button>
+          )}
           {(["model", "grid", "table"] as const).map((v) => (
             <button
               key={v}
@@ -324,13 +362,19 @@ export function Inventory({
           minimums={minimums}
           workspaceId={workspaceId}
           canEdit={canEdit}
+          selection={selecting ? { picked, toggle } : undefined}
         />
       ) : view === "table" ? (
         <div className="lg lg-dark mt-4 overflow-x-auto rounded-[22px]">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="font-mono text-[10.5px] uppercase tracking-wider text-[#AEB8C5]">
               <tr className="border-b border-white/10">
-                {["Name", "Type", "Status", "Location", "Customer", "Due"].map((h) => (
+                {selecting && (
+                  <th scope="col" className="w-10 px-4 py-3">
+                    <span className="sr-only">Selected</span>
+                  </th>
+                )}
+                {["Name", "Type", "Status", "Location", "Project", "Due"].map((h) => (
                   <th key={h} scope="col" className="px-4 py-3 font-medium">{h}</th>
                 ))}
               </tr>
@@ -339,11 +383,22 @@ export function Inventory({
               {filtered.map((d) => {
                 const overdue = isOverdue(d, today);
                 return (
-                  <tr key={d.id} className="transition hover:bg-white/[.04]">
+                  <tr key={d.id} className={`transition hover:bg-white/[.04] ${picked.has(d.id) && selecting ? "bg-amber/10" : ""}`}>
+                    {selecting && (
+                      <td className="px-4 py-2.5">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-[#F7A23A]"
+                          checked={picked.has(d.id)}
+                          onChange={(e) => toggle([d.id], e.target.checked)}
+                          aria-label={`Select ${d.name} ${d.serial ?? ""}`}
+                        />
+                      </td>
+                    )}
                     <td className="max-w-[16rem] px-4 py-2.5">
                       <button
                         type="button"
-                        onClick={() => setSelected({ id: d.id })}
+                        onClick={() => (selecting ? toggle([d.id], !picked.has(d.id)) : setSelected({ id: d.id }))}
                         className="block max-w-full truncate text-left font-mono font-semibold normal-case text-ink hover:text-[#FFC27A] focus:outline-none focus-visible:underline"
                       >
                         {d.name}
@@ -385,10 +440,46 @@ export function Inventory({
               key={d.id}
               device={d}
               overdue={isOverdue(d, today)}
-              onOpen={() => setSelected({ id: d.id })}
+              onOpen={() => (selecting ? toggle([d.id], !picked.has(d.id)) : setSelected({ id: d.id }))}
+              checked={selecting ? picked.has(d.id) : undefined}
             />
           ))}
         </div>
+      )}
+
+      {selecting && (
+        <div className="fixed inset-x-3 bottom-[calc(max(.75rem,env(safe-area-inset-bottom))+4.75rem)] z-40 lg:inset-x-auto lg:bottom-6 lg:left-[calc(17.5rem+2rem)] lg:right-8">
+          <div className="lg lg-solid mx-auto flex max-w-3xl items-center gap-2 rounded-[22px] px-4 py-3">
+            <span className="mr-auto min-w-0 font-mono text-sm text-ink">
+              {picked.size} selected
+              {picked.size > 0 && (
+                <button type="button" className="ml-3 text-xs text-[#FFC27A] hover:underline" onClick={() => setPicked(new Set())}>
+                  Clear
+                </button>
+              )}
+            </span>
+            <button type="button" className="btn-ghost shrink-0 px-3" disabled={!pickedDevices.some(canReturn)} onClick={() => setBulk("return")}>
+              Return
+            </button>
+            <button type="button" className="btn-primary shrink-0 px-3" disabled={!pickedDevices.some(canSend)} onClick={() => setBulk("send")}>
+              Send<span className="hidden sm:inline">&nbsp;to project</span>
+            </button>
+          </div>
+        </div>
+      )}
+      {bulk && (
+        <BulkMoveDialog
+          kind={bulk}
+          devices={pickedDevices}
+          workspaceId={workspaceId}
+          customers={suggestions.customers}
+          places={places}
+          onClose={() => setBulk(null)}
+          onDone={() => {
+            setBulk(null);
+            stopSelecting();
+          }}
+        />
       )}
 
       {selected && (selected === "new" || selectedDevice) && (

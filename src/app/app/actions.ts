@@ -5,8 +5,9 @@ import { and, count, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { authorize } from "@/lib/access";
 import { getDb } from "@/lib/db";
-import { resolvePlace } from "@/lib/devices";
-import { ensureProjects, renameProjectStatements } from "@/lib/projects";
+import { listPlaces, resolvePlace } from "@/lib/devices";
+import type { Place } from "@/lib/places";
+import { ensureProjects, projectIdByName, renameProjectStatements } from "@/lib/projects";
 import { deviceHistory, devices, stockMinimums } from "@/lib/schema";
 import { modelKey } from "@/lib/models";
 import { ASSIGNMENT_LABELS, CATEGORIES, MAX_DEVICES_PER_WORKSPACE, limitMessage, statusLabel } from "@/lib/categories";
@@ -204,29 +205,19 @@ export async function importDevices(
   };
 }
 
-/** Send to customer, return to stock, mark faulty/missing/retired, from the action buttons. */
-export async function moveDevice(workspaceId: unknown, id: unknown, move: unknown): Promise<ActionResult> {
-  const auth = await authorize(workspaceId, "editor");
-  if (!auth.ok) return auth;
+type DbDevice = typeof devices.$inferSelect;
+type Move = z.output<typeof moveSchema>;
 
-  const idParsed = idSchema.safeParse(id);
-  if (!idParsed.success) return { ok: false, error: "Invalid device id." };
-  const m = moveSchema.safeParse(move);
-  if (!m.success) return { ok: false, error: m.error.issues[0]?.message ?? "Invalid input." };
-
-  const db = getDb();
-  const [existing] = await db
-    .select()
-    .from(devices)
-    .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId)));
-  if (!existing) return { ok: false, error: "Device not found." };
-
-  const move_ = m.data;
+/**
+ * Works out one device's move: the merged row (re-validated with the normal device rules, so leaving a customer
+ * clears customer fields), its history text and the project it touched.
+ */
+async function planMove(workspaceId: string, existing: DbDevice, move_: Move, places: Place[]) {
   let patch: Record<string, unknown>;
   let text: string;
   switch (move_.type) {
     case "checkout": {
-      if (existing.status === "In Use") return { ok: false, error: "This device is already at a customer. Return it first." };
+      if (existing.status === "In Use") return { ok: false as const, error: "This device is already at a customer. Return it first." };
       const { customer, contact, assignment, outDate, returnDate } = move_;
       patch = { status: "In Use", customer, contact, assignment, outDate, returnDate };
       text = `Sent to ${customer} (${ASSIGNMENT_LABELS[assignment].toLowerCase()}${returnDate ? `, due ${returnDate}` : ""})`;
@@ -240,35 +231,79 @@ export async function moveDevice(workspaceId: unknown, id: unknown, move: unknow
       break;
     }
     case "status": {
-      if (existing.status === move_.status) return { ok: false, error: `Already ${statusLabel(move_.status)}.` };
+      if (existing.status === move_.status) return { ok: false as const, error: `Already ${statusLabel(move_.status)}.` };
       patch = { status: move_.status };
       text = `Marked ${statusLabel(move_.status).toLowerCase()}`;
       break;
     }
   }
 
-  // Re-run the normal device rules on the merged result (e.g. leaving a customer clears customer fields).
   const { id: _i, workspaceId: _w, userId: _u, createdAt: _c, updatedAt: _up, ...current } = existing;
   const parsed = deviceInputSchema.safeParse({ ...current, ...patch });
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
-  const place = await resolvePlace(auth.workspaceId, parsed.data);
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const place = await resolvePlace(workspaceId, parsed.data, places);
   if (!place.ok) return place;
   if (move_.type === "checkin" && place.location) text += ` (${place.location})`;
   if (move_.note) text += ` — ${move_.note}`;
   // Tag the project it went to, or the one it came back from.
   const project = (move_.type === "checkout" ? move_.customer : existing.customer) ?? null;
-  if (move_.type === "checkout") await ensureProjects(auth.workspaceId, [move_.customer]);
+  return { ok: true as const, row: { ...parsed.data, ...placeFields(place) }, text, project };
+}
 
+/** Send to customer, return to stock, mark faulty/missing/retired, from the action buttons. */
+export async function moveDevice(workspaceId: unknown, id: unknown, move: unknown): Promise<ActionResult> {
+  const res = await moveDevices(workspaceId, [id], move);
+  return res.ok ? { ok: true } : res;
+}
+
+/**
+ * The same move for many devices at once (bulk Send / Return from the Devices page). All or nothing:
+ * if any device can't make the move, nothing changes.
+ */
+export async function moveDevices(
+  workspaceId: unknown,
+  ids: unknown,
+  move: unknown,
+): Promise<ActionResult<{ moved: number; projectId: string | null }>> {
+  const auth = await authorize(workspaceId, "editor");
+  if (!auth.ok) return auth;
+
+  const idsParsed = z.array(idSchema).min(1, "Pick at least one device").max(MAX_DEVICES_PER_WORKSPACE).safeParse(ids);
+  if (!idsParsed.success) return { ok: false, error: idsParsed.error.issues[0]?.message ?? "Invalid device id." };
+  const m = moveSchema.safeParse(move);
+  if (!m.success) return { ok: false, error: m.error.issues[0]?.message ?? "Invalid input." };
+  const wanted = [...new Set(idsParsed.data)];
+
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(devices)
+    .where(and(eq(devices.workspaceId, auth.workspaceId), inArray(devices.id, wanted)));
+  if (rows.length !== wanted.length) return { ok: false, error: wanted.length === 1 ? "Device not found." : "Some devices no longer exist. Reload and try again." };
+
+  const places = await listPlaces(auth.workspaceId);
+  const plans = [];
+  for (const existing of rows) {
+    const plan = await planMove(auth.workspaceId, existing, m.data, places);
+    if (!plan.ok) return rows.length === 1 ? plan : { ok: false, error: `${existing.name} (${existing.serial ?? "no serial"}): ${plan.error}` };
+    plans.push({ id: existing.id, ...plan });
+  }
+
+  if (m.data.type === "checkout") await ensureProjects(auth.workspaceId, [m.data.customer]);
+  const now = new Date();
   await db.batch([
-    db
-      .update(devices)
-      .set({ ...parsed.data, ...placeFields(place), updatedAt: new Date() })
-      .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId))),
-    db.insert(deviceHistory).values({ deviceId: idParsed.data, userId: auth.userId, text, project }),
+    db.insert(deviceHistory).values(plans.map((p) => ({ deviceId: p.id, userId: auth.userId, text: p.text, project: p.project }))),
+    ...plans.map((p) =>
+      db
+        .update(devices)
+        .set({ ...p.row, updatedAt: now })
+        .where(and(eq(devices.id, p.id), eq(devices.workspaceId, auth.workspaceId))),
+    ),
   ]);
 
   revalidatePath("/app", "layout");
-  return { ok: true };
+  const projectId = m.data.type === "checkout" ? await projectIdByName(auth.workspaceId, m.data.customer) : null;
+  return { ok: true, moved: plans.length, projectId };
 }
 
 const mergeSchema = z.object({
