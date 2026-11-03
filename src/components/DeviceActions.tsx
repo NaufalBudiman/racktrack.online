@@ -48,7 +48,7 @@ const ACTIONS: Record<Status, Mode[]> = {
   Retired: [{ kind: "checkin", label: "Back to stock" }],
 };
 
-const label = (m: Mode) => (m.kind === "checkout" ? "Send to customer" : m.label);
+const label = (m: Mode) => (m.kind === "checkout" ? "Send to project" : m.label);
 
 /**
  * Status buttons for a device (editors and up). Each opens a short inline form,
@@ -151,7 +151,7 @@ export function DeviceActions({
         {mode.kind === "checkout" && (
           <>
             <label className={`${field} col-span-2`}>
-              <span className={lab}>Customer *</span>
+              <span className={lab}>Project / customer *</span>
               <input
                 className="input"
                 list={`${ids}-customers`}

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { authorize } from "@/lib/access";
 import { getDb } from "@/lib/db";
 import { resolvePlace } from "@/lib/devices";
+import { ensureProjects, renameProjectStatements } from "@/lib/projects";
 import { deviceHistory, devices, stockMinimums } from "@/lib/schema";
 import { modelKey } from "@/lib/models";
 import { ASSIGNMENT_LABELS, CATEGORIES, MAX_DEVICES_PER_WORKSPACE, limitMessage, statusLabel } from "@/lib/categories";
@@ -44,11 +45,14 @@ export async function createDevice(workspaceId: unknown, input: unknown): Promis
 
   const db = getDb();
   const id = crypto.randomUUID();
+  await ensureProjects(auth.workspaceId, [parsed.data.customer]);
   await db.batch([
     db
       .insert(devices)
       .values({ ...parsed.data, ...placeFields(place), id, workspaceId: auth.workspaceId, userId: auth.userId }),
-    db.insert(deviceHistory).values({ deviceId: id, userId: auth.userId, text: "Device added." }),
+    db
+      .insert(deviceHistory)
+      .values({ deviceId: id, userId: auth.userId, text: "Device added.", project: parsed.data.customer ?? null }),
   ]);
 
   revalidatePath("/app", "layout");
@@ -89,9 +93,13 @@ export async function updateDevice(workspaceId: unknown, id: unknown, input: unk
     .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId)));
 
   if (changes.length > 0) {
+    const project = next.customer ?? existing.customer ?? null;
+    await ensureProjects(auth.workspaceId, [next.customer]);
     await db.batch([
       update,
-      db.insert(deviceHistory).values(changes.map((text) => ({ deviceId: idParsed.data, userId: auth.userId, text }))),
+      db
+        .insert(deviceHistory)
+        .values(changes.map((text) => ({ deviceId: idParsed.data, userId: auth.userId, text, project }))),
     ]);
   } else {
     await update;
@@ -171,13 +179,19 @@ export async function importDevices(
     workspaceId: auth.workspaceId,
     userId: auth.userId,
   }));
+  await ensureProjects(auth.workspaceId, withIds.map((d) => d.customer));
   // One batch = one transaction: all rows are imported or none.
   await db.batch([
     db.insert(devices).values(withIds),
     db
       .insert(deviceHistory)
       .values(
-        withIds.map((d) => ({ deviceId: d.id, userId: auth.userId, text: "Imported from spreadsheet." })),
+        withIds.map((d) => ({
+          deviceId: d.id,
+          userId: auth.userId,
+          text: "Imported from spreadsheet.",
+          project: d.customer ?? null,
+        })),
       ),
   ]);
 
@@ -241,13 +255,16 @@ export async function moveDevice(workspaceId: unknown, id: unknown, move: unknow
   if (!place.ok) return place;
   if (move_.type === "checkin" && place.location) text += ` (${place.location})`;
   if (move_.note) text += ` — ${move_.note}`;
+  // Tag the project it went to, or the one it came back from.
+  const project = (move_.type === "checkout" ? move_.customer : existing.customer) ?? null;
+  if (move_.type === "checkout") await ensureProjects(auth.workspaceId, [move_.customer]);
 
   await db.batch([
     db
       .update(devices)
       .set({ ...parsed.data, ...placeFields(place), updatedAt: new Date() })
       .where(and(eq(devices.id, idParsed.data), eq(devices.workspaceId, auth.workspaceId))),
-    db.insert(deviceHistory).values({ deviceId: idParsed.data, userId: auth.userId, text }),
+    db.insert(deviceHistory).values({ deviceId: idParsed.data, userId: auth.userId, text, project }),
   ]);
 
   revalidatePath("/app", "layout");
@@ -277,12 +294,21 @@ export async function mergeValues(workspaceId: unknown, input: unknown): Promise
   if (rows.length === 0) return { ok: true, changed: 0 };
 
   const label = { customer: "Customer", name: "Name" }[field];
+  // Customers are projects: merging also merges the project rows, history tags and share links.
+  const projectSteps = field === "customer" ? await renameProjectStatements(auth.workspaceId, from, to) : [];
   await db.batch([
     db.update(devices).set({ [field]: to, updatedAt: new Date() }).where(scope),
     db.insert(deviceHistory).values(
-      rows.map((r) => ({ deviceId: r.id, userId: auth.userId, text: `${label}: ${r.value} → ${to} (merged)` })),
+      rows.map((r) => ({
+        deviceId: r.id,
+        userId: auth.userId,
+        text: `${label}: ${r.value} → ${to} (merged)`,
+        project: field === "customer" ? to : null,
+      })),
     ),
+    ...projectSteps,
   ]);
+  if (field === "customer") await ensureProjects(auth.workspaceId, [to]);
 
   revalidatePath("/app", "layout");
   return { ok: true, changed: rows.length };

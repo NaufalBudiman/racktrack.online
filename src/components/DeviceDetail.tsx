@@ -35,6 +35,7 @@ export function DeviceDetail({
   canEdit,
   canShare,
   suggestions,
+  projectId,
 }: {
   device: DeviceRow;
   history: HistoryItem[];
@@ -42,6 +43,7 @@ export function DeviceDetail({
   canEdit: boolean;
   canShare: boolean;
   suggestions: Suggestions;
+  projectId: string | null;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -135,7 +137,18 @@ export function DeviceDetail({
                 </span>
               }
             />
-            <Row label="Customer" value={d.customer ?? "—"} />
+            <Row
+              label="Project"
+              value={
+                d.customer && projectId ? (
+                  <Link href={`/app/projects/${projectId}`} className="text-[#FFC27A] hover:underline">
+                    {d.customer}
+                  </Link>
+                ) : (
+                  d.customer ?? "—"
+                )
+              }
+            />
             <Row label="Assignment" value={d.assignment && ASSIGNMENT_LABELS[d.assignment]} />
             <Row label="Contact" value={d.contact} />
             <Row label="Out date" value={d.outDate} />

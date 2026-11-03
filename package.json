@@ -12,6 +12,7 @@
     "db:migrate-workspaces": "tsx scripts/migrate-workspaces.ts",
     "db:migrate-statuses": "tsx scripts/migrate-statuses.ts",
     "db:migrate-locations": "tsx scripts/migrate-locations.ts",
+    "db:migrate-projects": "tsx scripts/migrate-projects.ts",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {

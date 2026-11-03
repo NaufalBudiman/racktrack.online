@@ -18,6 +18,7 @@ import type { AdapterAccountType } from "next-auth/adapters";
 import type { Assignment, Status } from "./categories";
 import type { AssignableRole, Digest, Role } from "./roles";
 import type { ShareKind } from "./share";
+import type { ProjectStatus } from "./projectTypes";
 
 /* ---------- Auth.js (Drizzle adapter) tables ---------- */
 
@@ -157,6 +158,30 @@ export const stockMinimums = pgTable(
   ],
 );
 
+// A project = a customer job (e.g. "UT Palembang"). `name` is the key devices.customer and device_history.project point at,
+// so a rename must update those too (see renameProject). Rows are created automatically when a device is sent somewhere new.
+export const projects = pgTable(
+  "projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    status: text("status").$type<ProjectStatus>().notNull().default("active"),
+    picUserId: text("pic_user_id").references(() => users.id, { onDelete: "set null" }),
+    city: text("city"),
+    startDate: date("start_date", { mode: "string" }),
+    endDate: date("end_date", { mode: "string" }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("projects_ws_name_idx").on(t.workspaceId, t.name),
+    check("projects_status_check", sql`${t.status} in ('active', 'done')`),
+  ],
+);
+
 // Read-only public links (/s/<token>), no sign-in. target = customer name, location id or device id (null for "all").
 export const shareLinks = pgTable(
   "share_links",
@@ -232,7 +257,7 @@ export const devices = pgTable(
   ],
 );
 
-// Written on every status/location/customer change; UI comes in v1.2.
+// Written on every status/location/customer change.
 export const deviceHistory = pgTable(
   "device_history",
   {
@@ -242,9 +267,10 @@ export const deviceHistory = pgTable(
       .references(() => devices.id, { onDelete: "cascade" }),
     userId: text("user_id").references(() => users.id, { onDelete: "set null" }), // who made the change
     text: text("text").notNull(),
+    project: text("project"), // project/customer name this change touched (to or from), for project timelines
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("device_history_device_idx").on(t.deviceId)],
+  (t) => [index("device_history_device_idx").on(t.deviceId), index("device_history_project_idx").on(t.project)],
 );

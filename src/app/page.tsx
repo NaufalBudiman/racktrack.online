@@ -58,7 +58,7 @@ const CUSTOMERS = [
   { name: "Sinar Retail", sub: "2 on loan · next due 14 Nov", n: 5, overdue: false },
 ];
 
-const NAV_ITEMS = ["Dashboard", "Devices", "Customers", "Activity", "Team"];
+const NAV_ITEMS = ["Dashboard", "Devices", "Projects", "Activity", "Team"];
 
 function OverdueTag() {
   return (

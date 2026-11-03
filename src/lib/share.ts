@@ -5,7 +5,7 @@ export const SHARE_KINDS = ["all", "customer", "location", "device"] as const;
 export type ShareKind = (typeof SHARE_KINDS)[number];
 export const SHARE_KIND_LABELS: Record<ShareKind, string> = {
   all: "Whole inventory",
-  customer: "One customer",
+  customer: "One project",
   location: "One location",
   device: "One device",
 };

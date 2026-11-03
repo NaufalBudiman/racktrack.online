@@ -37,5 +37,6 @@ export type HistoryItem = {
   createdAt: string;
   deviceId: string;
   deviceName: string;
+  project: { id: string; name: string } | null; // the project this change touched
   by: string | null; // null for seed/import rows from before workspaces
 };

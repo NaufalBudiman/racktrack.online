@@ -145,13 +145,13 @@ export function ShareDialog({
                   </div>
                   {scope.kind === "customer" && (
                     <div>
-                      <label className={label} htmlFor="share-customer">Customer</label>
+                      <label className={label} htmlFor="share-customer">Project</label>
                       <select id="share-customer" className="input" value={scope.target ?? ""} onChange={(e) => setScope({ kind: "customer", target: e.target.value })}>
                         {customers.map((c) => (
                           <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
-                      <p className="mt-1.5 text-xs text-[#AEB8C5]">Shows only the devices at this customer. Other customers stay hidden.</p>
+                      <p className="mt-1.5 text-xs text-[#AEB8C5]">Shows only the devices at this project. Other projects stay hidden.</p>
                     </div>
                   )}
                   {scope.kind === "location" && (
@@ -176,7 +176,7 @@ export function ShareDialog({
                 {scope.kind !== "customer" && (
                   <label className="flex items-center gap-2.5 text-sm text-ink">
                     <input type="checkbox" className="h-4 w-4 accent-[#F7A23A]" checked={showCustomer} onChange={(e) => setShowCustomer(e.target.checked)} />
-                    Customer names
+                    Project / customer names
                   </label>
                 )}
                 <p className="text-xs text-[#AEB8C5]">Notes, contacts and purchase details are never shown.</p>

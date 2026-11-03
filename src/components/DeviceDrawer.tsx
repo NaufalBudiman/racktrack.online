@@ -291,9 +291,9 @@ export function DeviceDrawer({
               {(form.status === "In Use" || form.status === "Hilang") && (
                 <>
                   <div className="col-span-2 mt-1 border-t border-white/10 pt-3 font-mono text-[10px] uppercase tracking-widest text-[#FFC27A]">
-                    {form.status === "In Use" ? "At customer" : "Last known customer"}
+                    {form.status === "In Use" ? "At project" : "Last known project"}
                   </div>
-                  <Field label={form.status === "In Use" ? "Customer *" : "Customer"}>
+                  <Field label={form.status === "In Use" ? "Project / customer *" : "Project / customer"}>
                     <input
                       className="input"
                       value={form.customer}
@@ -384,7 +384,7 @@ export function DeviceDrawer({
                   <Row label="Location" value={device.location} />
                   <Row label="Rack / port" value={device.rackPosition} />
                   <Row label="Firmware" value={device.firmwareVersion && <span className="font-mono">{device.firmwareVersion}</span>} />
-                  <Row label="Customer" value={device.customer} />
+                  <Row label="Project" value={device.customer} />
                   <Row label="Assignment" value={device.assignment && ASSIGNMENT_LABELS[device.assignment]} />
                   <Row label="Contact" value={device.contact} />
                   <Row label="Out date" value={device.outDate} />

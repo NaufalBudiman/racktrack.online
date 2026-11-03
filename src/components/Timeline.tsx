@@ -3,8 +3,16 @@ import { historyLabel } from "@/lib/categories";
 import type { HistoryItem } from "@/lib/types";
 import { LocalTime } from "./LocalTime";
 
-/** History list, newest first. `showDevice` adds a link to each entry's device. */
-export function Timeline({ items, showDevice = false }: { items: HistoryItem[]; showDevice?: boolean }) {
+/** History list, newest first. `showDevice` links each entry's device; `showProject` tags its project. */
+export function Timeline({
+  items,
+  showDevice = false,
+  showProject = false,
+}: {
+  items: HistoryItem[];
+  showDevice?: boolean;
+  showProject?: boolean; // tag each entry with the project it touched
+}) {
   if (items.length === 0) return <p className="text-sm text-[#AEB8C5]">No activity yet.</p>;
   return (
     <ol className="relative space-y-4 before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-white/10">
@@ -21,6 +29,14 @@ export function Timeline({ items, showDevice = false }: { items: HistoryItem[]; 
               </>
             )}
             {historyLabel(h.text)}
+            {showProject && h.project && (
+              <Link
+                href={`/app/projects/${h.project.id}`}
+                className="ml-2 inline-block rounded-md bg-amber/10 px-1.5 py-px align-middle font-mono text-[10.5px] text-[#FFD9A8] shadow-[inset_0_0_0_1px_rgba(239,155,62,.4)] hover:bg-amber/20"
+              >
+                {h.project.name}
+              </Link>
+            )}
           </div>
           <div className="mt-0.5 font-mono text-[11px] text-[#97A3B3]">
             <LocalTime iso={h.createdAt} />

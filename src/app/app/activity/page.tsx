@@ -1,18 +1,23 @@
 import { redirect } from "next/navigation";
 import { getAppContext } from "@/lib/access";
 import { listHistory } from "@/lib/devices";
+import { listProjects } from "@/lib/projects";
 import { Timeline } from "@/components/Timeline";
+import { ProjectFilter } from "@/components/ProjectFilter";
 
 export const dynamic = "force-dynamic";
 
 const LIMIT = 200;
 
-export default async function ActivityPage() {
+export default async function ActivityPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const ctx = await getAppContext();
   if (!ctx) redirect("/");
   const { workspace } = ctx;
 
-  const history = await listHistory(workspace.workspaceId, { limit: LIMIT });
+  const projects = await listProjects(workspace.workspaceId);
+  const wanted = (await searchParams).project;
+  const project = projects.find((p) => p.id === wanted) ?? null;
+  const history = await listHistory(workspace.workspaceId, { project: project?.name, limit: LIMIT });
 
   return (
     <div className="space-y-4">
@@ -20,12 +25,15 @@ export default async function ActivityPage() {
         <div className="eyebrow">Activity</div>
         <h1 className="mt-1.5 break-words font-mono text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{workspace.name}</h1>
         <p className="mt-2 text-sm text-[#BAC3CF]">
-          Devices added, imported, and every status, location or customer change.
+          Devices added, imported, and every status, location or project change.
           {history.length === LIMIT && ` Showing the latest ${LIMIT}.`}
         </p>
       </div>
+      {projects.length > 0 && (
+        <ProjectFilter projects={projects.map((p) => ({ id: p.id, name: p.name }))} value={project?.id ?? ""} />
+      )}
       <section className="lg lg-dark rounded-[22px] p-5">
-        <Timeline items={history} showDevice />
+        <Timeline items={history} showDevice showProject={!project} />
       </section>
     </div>
   );

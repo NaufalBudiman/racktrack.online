@@ -4,6 +4,7 @@ import { getDevice, listHistory, listSuggestions } from "@/lib/devices";
 import { canEditDevices, canManageMembers } from "@/lib/roles";
 import { idSchema } from "@/lib/validation";
 import { DeviceDetail } from "@/components/DeviceDetail";
+import { projectIdByName } from "@/lib/projects";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function DevicePage({ params }: { params: Promise<{ id: str
     listSuggestions(workspace.workspaceId),
   ]);
   if (!device) notFound();
+  const projectId = await projectIdByName(workspace.workspaceId, device.customer);
 
   return (
     <DeviceDetail
@@ -32,6 +34,7 @@ export default async function DevicePage({ params }: { params: Promise<{ id: str
       canEdit={canEditDevices(workspace.role)}
       canShare={canManageMembers(workspace.role)}
       suggestions={suggestions}
+      projectId={projectId}
     />
   );
 }

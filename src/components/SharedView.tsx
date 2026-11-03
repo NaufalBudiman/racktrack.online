@@ -90,7 +90,7 @@ export function SharedView({ view }: { view: Ok }) {
     return [...map.values()].sort((a, b) => b.units.length - a.units.length || a.name.localeCompare(b.name));
   }, [list]);
 
-  const eyebrow = { all: "Inventory", customer: "Devices at customer", location: "Location", device: "Device" }[view.kind];
+  const eyebrow = { all: "Inventory", customer: "Project", location: "Location", device: "Device" }[view.kind];
 
   const header = (
     <div className="mb-5">

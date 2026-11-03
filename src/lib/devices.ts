@@ -1,7 +1,7 @@
 // Server-only reads shared by the dashboard pages. Callers pass a workspace id from getAppContext().
 import { and, asc, count, desc, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "./db";
-import { deviceHistory, devices, locations, stockMinimums, users } from "./schema";
+import { deviceHistory, devices, locations, projects, stockMinimums, users } from "./schema";
 import { sortPlaces, type Place } from "./places";
 import type { DeviceRow, HistoryItem } from "./types";
 
@@ -40,7 +40,7 @@ export async function categoryCounts(workspaceId: string): Promise<Record<string
 /** Newest first. Pass deviceId for one device's timeline. */
 export async function listHistory(
   workspaceId: string,
-  { deviceId, limit }: { deviceId?: string; limit: number },
+  { deviceId, project, limit }: { deviceId?: string; project?: string; limit: number },
 ): Promise<HistoryItem[]> {
   const rows = await getDb()
     .select({
@@ -51,31 +51,37 @@ export async function listHistory(
       deviceName: devices.name,
       userName: users.name,
       userEmail: users.email,
+      projectId: projects.id,
+      projectName: projects.name,
     })
     .from(deviceHistory)
     .innerJoin(devices, eq(devices.id, deviceHistory.deviceId))
     .leftJoin(users, eq(users.id, deviceHistory.userId))
+    .leftJoin(projects, and(eq(projects.workspaceId, workspaceId), eq(projects.name, deviceHistory.project)))
     .where(
-      deviceId
-        ? and(eq(devices.workspaceId, workspaceId), eq(devices.id, deviceId))
-        : eq(devices.workspaceId, workspaceId),
+      and(
+        eq(devices.workspaceId, workspaceId),
+        deviceId ? eq(devices.id, deviceId) : undefined,
+        project ? eq(deviceHistory.project, project) : undefined,
+      ),
     )
     .orderBy(desc(deviceHistory.createdAt))
     .limit(limit);
 
-  return rows.map(({ userName, userEmail, createdAt, ...r }) => ({
+  return rows.map(({ userName, userEmail, createdAt, projectId, projectName, ...r }) => ({
     ...r,
+    project: projectId && projectName ? { id: projectId, name: projectName } : null,
     createdAt: createdAt.toISOString(),
     by: userName ?? userEmail ?? null,
   }));
 }
 
-/** Existing customers (most used first), model names and places, for form suggestions. */
+/** Existing customers/projects (most used first), model names and places, for form suggestions. */
 export async function listSuggestions(
   workspaceId: string,
 ): Promise<{ customers: string[]; models: { name: string; category: string }[]; places: Place[] }> {
   const db = getDb();
-  const [customers, models, places] = await Promise.all([
+  const [customers, models, places, active] = await Promise.all([
     db
       .select({ v: devices.customer, n: count() })
       .from(devices)
@@ -91,9 +97,16 @@ export async function listSuggestions(
       .orderBy(desc(count()))
       .limit(300),
     listPlaces(workspaceId),
+    db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(and(eq(projects.workspaceId, workspaceId), eq(projects.status, "active"))),
   ]);
+  // Customers already used (most first), then active projects that have no devices yet.
+  const used = customers.map((r) => r.v as string);
+  const seen = new Set(used);
   return {
-    customers: customers.map((r) => r.v as string),
+    customers: [...used, ...active.map((p) => p.name).filter((n) => !seen.has(n)).sort((a, b) => a.localeCompare(b))],
     models: models.map(({ name, category }) => ({ name, category })),
     places,
   };

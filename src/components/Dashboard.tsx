@@ -255,10 +255,10 @@ export function Dashboard({
             <BigPanel
               tone="amber"
               eyebrow="Out in the field"
-              title="At customers"
+              title="At projects"
               count={stats["In Use"]}
-              unit={`devices at ${customers.length} customer${customers.length === 1 ? "" : "s"}`}
-              href="/app/customers"
+              unit={`devices at ${customers.length} project${customers.length === 1 ? "" : "s"}`}
+              href="/app/projects"
             >
               {customers.length === 0 ? (
                 <p className="text-sm text-[#AEB8C5]">No devices at customers.</p>
@@ -339,7 +339,7 @@ export function Dashboard({
                 </Link>
               }
             >
-              <Timeline items={history} showDevice />
+              <Timeline items={history} showDevice showProject />
             </Panel>
           </div>
         </>

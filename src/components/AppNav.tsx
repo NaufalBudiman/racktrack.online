@@ -9,7 +9,7 @@ type IconName = "dashboard" | "devices" | "customers" | "locations" | "activity"
 const NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/app", label: "Dashboard", icon: "dashboard" },
   { href: "/app/devices", label: "Devices", icon: "devices" },
-  { href: "/app/customers", label: "Customers", icon: "customers" },
+  { href: "/app/projects", label: "Projects", icon: "customers" },
   { href: "/app/locations", label: "Locations", icon: "locations" },
   { href: "/app/activity", label: "Activity", icon: "activity" },
   { href: "/app/team", label: "Team", icon: "team" },
