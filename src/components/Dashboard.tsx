@@ -148,6 +148,10 @@ export function Dashboard({
         </div>
         {canEdit && (
           <div className="flex gap-2">
+            {/* phones have no sidebar entry for it */}
+            <Link href="/app/opname" className="btn-ghost lg:hidden">
+              Opname
+            </Link>
             <Link href="/app/devices?import=1" className="btn-ghost">
               Import
             </Link>
