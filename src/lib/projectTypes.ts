@@ -1,5 +1,6 @@
 // Projects (client-safe). A project is a customer job; its name is what devices.customer holds.
 import type { DeviceRow, HistoryItem } from "./types";
+import type { ReceiptRow } from "./receiptTypes";
 
 export const PROJECT_STATUSES = ["active", "done"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
@@ -10,6 +11,10 @@ export type ProjectRow = {
   name: string;
   status: ProjectStatus;
   city: string | null;
+  company: string | null; // legal name for tanda terima (falls back to name)
+  address: string | null;
+  attnName: string | null;
+  attnPhone: string | null;
   pic: string | null; // PIC display name
   picUserId: string | null;
   startDate: string | null;
@@ -27,4 +32,5 @@ export type ProjectDetailData = {
   current: DeviceRow[]; // there now (In Use + Missing there)
   returned: DeviceRow[]; // used here before, now elsewhere
   history: HistoryItem[];
+  receipts: ReceiptRow[];
 };

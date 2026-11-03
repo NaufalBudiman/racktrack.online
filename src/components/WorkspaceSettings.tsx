@@ -61,6 +61,7 @@ export function WorkspaceSettings({
   invites,
   myDigest,
   sharing,
+  extra,
 }: {
   workspaceId: string;
   name: string;
@@ -70,6 +71,7 @@ export function WorkspaceSettings({
   invites: Invite[] | null; // null = not allowed to see invites
   myDigest: Digest;
   sharing: { links: ShareLinkRow[]; customers: string[]; places: Place[] } | null; // null = not allowed
+  extra?: React.ReactNode; // admin sections rendered before "New workspace"
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -408,6 +410,8 @@ export function WorkspaceSettings({
           )}
         </Section>
       )}
+
+      {extra}
 
       <Section title="New workspace" id="new">
         <p className="mb-3 text-sm text-[#BAC3CF]">

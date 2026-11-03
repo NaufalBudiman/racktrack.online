@@ -8,6 +8,8 @@ import { WorkspaceSettings } from "@/components/WorkspaceSettings";
 import { listDevices, listPlaces } from "@/lib/devices";
 import { listShareLinks } from "@/lib/shared";
 import { shareableCustomers } from "@/lib/share";
+import { getReceiptSettings } from "@/lib/receipts";
+import { ReceiptSettings } from "@/components/ReceiptSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +20,7 @@ export default async function WorkspacePage() {
   const db = getDb();
   const manage = canManageMembers(workspace.role);
 
-  const [members, invites, sharing] = await Promise.all([
+  const [members, invites, sharing, receiptSettings] = await Promise.all([
     db
       .select({
         userId: users.id,
@@ -54,6 +56,7 @@ export default async function WorkspacePage() {
           listPlaces(workspace.workspaceId),
         ]).then(([links, devices, places]) => ({ links, customers: shareableCustomers(devices), places }))
       : Promise.resolve(null),
+    manage ? getReceiptSettings(workspace.workspaceId) : Promise.resolve(null),
   ]);
 
   return (
@@ -70,6 +73,7 @@ export default async function WorkspacePage() {
       )}
       invites={invites?.map((i) => ({ ...i, expiresAt: i.expiresAt.toISOString() })) ?? null}
       sharing={sharing}
+      extra={receiptSettings && <ReceiptSettings workspaceId={workspace.workspaceId} settings={receiptSettings} />}
     />
   );
 }

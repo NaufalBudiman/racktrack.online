@@ -76,7 +76,7 @@ export function ProjectDetail({
   canEdit: boolean;
   canShare: boolean;
 }) {
-  const { project: p, current, returned, history } = data;
+  const { project: p, current, returned, history, receipts } = data;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +89,10 @@ export function ProjectDetail({
     name: p.name,
     status: p.status,
     city: p.city ?? "",
+    company: p.company ?? "",
+    address: p.address ?? "",
+    attnName: p.attnName ?? "",
+    attnPhone: p.attnPhone ?? "",
     picUserId: p.picUserId ?? "",
     startDate: p.startDate ?? "",
     endDate: p.endDate ?? "",
@@ -141,6 +145,11 @@ export function ProjectDetail({
           <div className="flex flex-wrap gap-2">
             {canShare && current.length > 0 && (
               <ShareButton workspaceId={workspaceId} fixed={{ kind: "customer", target: p.name, title: p.name }} />
+            )}
+            {canEdit && onSite > 0 && (
+              <Link href={`/app/projects/${p.id}/receipt`} className="btn-ghost">
+                Tanda terima
+              </Link>
             )}
             {canEdit && (
               <>
@@ -213,6 +222,22 @@ export function ProjectDetail({
               <input type="date" className="input" value={form.endDate} onChange={set("endDate")} />
             </label>
           </div>
+          <label className="sm:col-span-2">
+            <span className={lab}>Company (for tanda terima)</span>
+            <input className="input" value={form.company} onChange={set("company")} maxLength={200} placeholder={form.name} />
+          </label>
+          <label className="sm:col-span-2">
+            <span className={lab}>Address</span>
+            <textarea className="input min-h-16" value={form.address} onChange={set("address")} maxLength={500} />
+          </label>
+          <label>
+            <span className={lab}>U.p. (contact person)</span>
+            <input className="input" value={form.attnName} onChange={set("attnName")} maxLength={120} />
+          </label>
+          <label>
+            <span className={lab}>Contact phone</span>
+            <input className="input" value={form.attnPhone} onChange={set("attnPhone")} maxLength={40} inputMode="tel" />
+          </label>
           <label className="sm:col-span-2">
             <span className={lab}>Notes</span>
             <textarea className="input min-h-20" value={form.notes} onChange={set("notes")} maxLength={2000} />
@@ -323,6 +348,29 @@ export function ProjectDetail({
                   </>
                 }
               />
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {receipts.length > 0 && (
+        <Panel title="Tanda terima" hint={`${receipts.filter((r) => !r.signedAt).length} waiting for signed photo`}>
+          <ul className="divide-y divide-white/10">
+            {receipts.map((r) => (
+              <li key={r.id}>
+                <Link href={`/receipt/${r.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-2.5 hover:bg-white/[.05]">
+                  <span className="font-mono text-sm text-ink">{r.number}</span>
+                  <span className="font-mono text-[11px] text-[#97A3B3]">
+                    {r.date} · {r.units} unit
+                  </span>
+                  <span className="flex-1" />
+                  {r.signedAt ? (
+                    <span className="rounded-md bg-green/15 px-1.5 py-px font-mono text-[10px] uppercase tracking-wider text-[#A6EFCB]">Signed</span>
+                  ) : (
+                    <span className="rounded-md bg-amber/15 px-1.5 py-px font-mono text-[10px] uppercase tracking-wider text-[#FFE1B8]">Waiting photo</span>
+                  )}
+                </Link>
+              </li>
             ))}
           </ul>
         </Panel>

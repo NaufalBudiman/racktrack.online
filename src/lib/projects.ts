@@ -4,6 +4,7 @@ import { getDb } from "./db";
 import { deviceHistory, devices, projects, shareLinks, users } from "./schema";
 import { listHistory, toDeviceRow } from "./devices";
 import type { ProjectDetailData, ProjectRow } from "./projectTypes";
+import { listReceipts } from "./receipts";
 
 /** Make sure a project row exists for each customer name (devices can be sent to a brand-new customer). */
 export async function ensureProjects(workspaceId: string, names: (string | null | undefined)[]) {
@@ -84,6 +85,10 @@ export async function listProjects(workspaceId: string): Promise<ProjectRow[]> {
         name: p.name,
         status: p.status,
         city: p.city,
+        company: p.company,
+        address: p.address,
+        attnName: p.attnName,
+        attnPhone: p.attnPhone,
         pic: picName ?? picEmail ?? null,
         picUserId: p.picUserId,
         startDate: p.startDate,
@@ -112,7 +117,7 @@ export async function getProject(workspaceId: string, id: string): Promise<Proje
     .selectDistinct({ id: deviceHistory.deviceId })
     .from(deviceHistory)
     .where(eq(deviceHistory.project, project.name));
-  const [rows, history] = await Promise.all([
+  const [rows, history, receiptList] = await Promise.all([
     db
       .select()
       .from(devices)
@@ -124,10 +129,11 @@ export async function getProject(workspaceId: string, id: string): Promise<Proje
       )
       .orderBy(devices.name, devices.serial),
     listHistory(workspaceId, { project: project.name, limit: 300 }),
+    listReceipts(workspaceId, project.id),
   ]);
   const list = rows.map(toDeviceRow);
   const isHere = (d: (typeof list)[number]) => d.customer === project.name && (d.status === "In Use" || d.status === "Hilang");
-  return { project, current: list.filter(isHere), returned: list.filter((d) => !isHere(d)), history };
+  return { project, current: list.filter(isHere), returned: list.filter((d) => !isHere(d)), history, receipts: receiptList };
 }
 
 /** Project id for a customer name (device page links). */

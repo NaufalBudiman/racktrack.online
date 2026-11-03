@@ -6,6 +6,7 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -19,6 +20,7 @@ import type { Assignment, Status } from "./categories";
 import type { AssignableRole, Digest, Role } from "./roles";
 import type { ShareKind } from "./share";
 import type { ProjectStatus } from "./projectTypes";
+import type { ReceiptItem } from "./receiptTypes";
 
 /* ---------- Auth.js (Drizzle adapter) tables ---------- */
 
@@ -82,6 +84,12 @@ export const workspaces = pgTable("workspaces", {
   name: text("name").notNull(),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Tanda terima (goods receipt) letterhead and defaults. See lib/receipts.ts.
+  companyName: text("company_name"),
+  companyCity: text("company_city"),
+  receiptWa: text("receipt_wa"), // WhatsApp number the signed receipt photo goes to
+  receiptFormat: text("receipt_format"), // number pattern, e.g. TT/CKI/{YYYY}/{MM}/{NNN}
+  letterhead: text("letterhead"), // data: URL of the header image (small JPEG/PNG)
 });
 
 export const workspaceMembers = pgTable(
@@ -171,6 +179,11 @@ export const projects = pgTable(
     status: text("status").$type<ProjectStatus>().notNull().default("active"),
     picUserId: text("pic_user_id").references(() => users.id, { onDelete: "set null" }),
     city: text("city"),
+    // Who receives the goods (printed on tanda terima): legal name, address, "U.p." person and phone.
+    company: text("company"),
+    address: text("address"),
+    attnName: text("attn_name"),
+    attnPhone: text("attn_phone"),
     startDate: date("start_date", { mode: "string" }),
     endDate: date("end_date", { mode: "string" }),
     notes: text("notes"),
@@ -180,6 +193,32 @@ export const projects = pgTable(
     uniqueIndex("projects_ws_name_idx").on(t.workspaceId, t.name),
     check("projects_status_check", sql`${t.status} in ('active', 'done')`),
   ],
+);
+
+// Tanda terima (goods receipt). Recipient and items are a snapshot, so a reprint matches what was signed.
+export const receipts = pgTable(
+  "receipts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    number: text("number").notNull(),
+    seq: integer("seq").notNull(), // running number within the year, for {NNN}
+    date: date("date", { mode: "string" }).notNull(),
+    city: text("city"),
+    company: text("company").notNull(),
+    address: text("address"),
+    attnName: text("attn_name"),
+    attnPhone: text("attn_phone"),
+    senderName: text("sender_name"),
+    items: jsonb("items").$type<ReceiptItem[]>().notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true }), // set when the signed photo came back
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("receipts_ws_number_idx").on(t.workspaceId, t.number), index("receipts_project_idx").on(t.projectId)],
 );
 
 // Read-only public links (/s/<token>), no sign-in. target = customer name, location id or device id (null for "all").
